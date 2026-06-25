@@ -1,0 +1,118 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/hemra-siirow/literary/internal/domain/entity"
+	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
+	"github.com/hemra-siirow/literary/internal/usecase/theatre"
+)
+
+type TheatreHandler struct {
+	createUC *theatre.CreateTheatreProductionUseCase
+	getUC    *theatre.GetTheatreProductionUseCase
+	listUC   *theatre.ListTheatreProductionsUseCase
+	updateUC *theatre.UpdateTheatreProductionUseCase
+	deleteUC *theatre.DeleteTheatreProductionUseCase
+}
+
+func NewTheatreHandler(c *theatre.CreateTheatreProductionUseCase, g *theatre.GetTheatreProductionUseCase, l *theatre.ListTheatreProductionsUseCase, u *theatre.UpdateTheatreProductionUseCase, d *theatre.DeleteTheatreProductionUseCase) *TheatreHandler {
+	return &TheatreHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d}
+}
+
+func (h *TheatreHandler) RegisterRoutes(r chi.Router) {
+	r.Get("/api/theatre-productions", h.List)
+	r.Get("/api/theatre-productions/{id}", h.Get)
+	r.Post("/api/theatre-productions", h.Create)
+	r.Put("/api/theatre-productions/{id}", h.Update)
+	r.Delete("/api/theatre-productions/{id}", h.Delete)
+}
+
+// @Summary List theatre productions
+// @Description List all theatre productions
+// @Success 200 {array} dto.TheatreResponse
+// @Failure 500 {object} handler.JSONResponse
+// @Router /api/theatre-productions [get]
+func (h *TheatreHandler) List(w http.ResponseWriter, r *http.Request) {
+	items, err := h.listUC.Execute(r.Context())
+	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusOK, theatreResponses(items))
+}
+
+// @Summary Get theatre production
+// @Description Get a single theatre production by id
+// @Param id path string true "Theatre production ID"
+// @Success 200 {object} dto.TheatreResponse
+// @Failure 400 {object} handler.JSONResponse
+// @Failure 404 {object} handler.JSONResponse
+// @Router /api/theatre-productions/{id} [get]
+func (h *TheatreHandler) Get(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
+	t, err := h.getUC.Execute(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	WriteJSON(w, http.StatusOK, theatreResponse(t))
+}
+
+// @Summary Create theatre production
+// @Description Create a new theatre production
+// @Accept json
+// @Param request body dto.TheatreCreateRequest true "Theatre production data"
+// @Success 201 {object} dto.TheatreResponse
+// @Failure 400 {object} handler.JSONResponse
+// @Failure 500 {object} handler.JSONResponse
+// @Router /api/theatre-productions [post]
+func (h *TheatreHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req dto.TheatreCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
+	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	t := entity.TheatreProduction{ID: uuid.New(), PlayTitle: req.PlayTitle, TheatreName: req.TheatreName, CreatedAt: time.Now()}
+	if req.PremiereDate != nil { t.PremiereDate = *req.PremiereDate }
+	t.Notes = req.Notes
+	if err := h.createUC.Execute(r.Context(), &t); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusCreated, theatreResponse(&t))
+}
+
+// @Summary Update theatre production
+// @Description Update an existing theatre production
+// @Accept json
+// @Param id path string true "Theatre production ID"
+// @Param request body dto.TheatreCreateRequest true "Theatre production data"
+// @Success 200 {object} dto.TheatreResponse
+// @Failure 400 {object} handler.JSONResponse
+// @Failure 500 {object} handler.JSONResponse
+// @Router /api/theatre-productions/{id} [put]
+func (h *TheatreHandler) Update(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
+	var req dto.TheatreCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
+	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	t := entity.TheatreProduction{ID: id, PlayTitle: req.PlayTitle, TheatreName: req.TheatreName}
+	if req.PremiereDate != nil { t.PremiereDate = *req.PremiereDate }
+	t.Notes = req.Notes
+	if err := h.updateUC.Execute(r.Context(), &t); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusOK, theatreResponse(&t))
+}
+
+// @Summary Delete theatre production
+// @Description Delete an existing theatre production by id
+// @Param id path string true "Theatre production ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} handler.JSONResponse
+// @Failure 500 {object} handler.JSONResponse
+// @Router /api/theatre-productions/{id} [delete]
+func (h *TheatreHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
+	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
+}

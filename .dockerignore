@@ -1,0 +1,9 @@
+uploads/
+.env
+.git
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test

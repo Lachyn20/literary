@@ -1,0 +1,1625 @@
+basePath: /
+definitions:
+  dto.BiographyCreateRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  dto.BiographyResponse:
+    properties:
+      content:
+        type: string
+      id:
+        type: string
+      photo_path:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.BiographyUpdateRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  dto.BookResponse:
+    properties:
+      bibliographic_info:
+        type: string
+      cover_image_path:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      page_count:
+        type: integer
+      pdf_path:
+        type: string
+      published_year:
+        type: integer
+      title:
+        type: string
+    type: object
+  dto.BroadcastResponse:
+    properties:
+      broadcast_date:
+        type: string
+      broadcast_type:
+        type: string
+      channel_name:
+        type: string
+      created_at:
+        type: string
+      file_path:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.CategoryCreateRequest:
+    properties:
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  dto.CategoryResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  dto.FilmResponse:
+    properties:
+      based_on_scenario:
+        type: boolean
+      created_at:
+        type: string
+      director:
+        type: string
+      film_type:
+        type: string
+      id:
+        type: string
+      release_year:
+        type: integer
+      title:
+        type: string
+      video_path:
+        type: string
+    type: object
+  dto.PersonalLetterResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      letter_date:
+        type: string
+      scan_image_path:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.PhotoArchiveResponse:
+    properties:
+      category:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      image_path:
+        type: string
+      taken_date:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.TheatreCreateRequest:
+    properties:
+      notes:
+        type: string
+      play_title:
+        maxLength: 255
+        minLength: 1
+        type: string
+      premiere_date:
+        type: string
+      theatre_name:
+        type: string
+    required:
+    - play_title
+    type: object
+  dto.TheatreResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      play_title:
+        type: string
+      premiere_date:
+        type: string
+      theatre_name:
+        type: string
+    type: object
+  dto.TranslatedByAuthorCreateRequest:
+    properties:
+      notes:
+        type: string
+      original_author_name:
+        type: string
+      original_language:
+        type: string
+      work_title:
+        type: string
+    required:
+    - original_author_name
+    - original_language
+    - work_title
+    type: object
+  dto.TranslatedByAuthorResponse:
+    properties:
+      id:
+        type: string
+      notes:
+        type: string
+      original_author_name:
+        type: string
+      original_language:
+        type: string
+      work_title:
+        type: string
+    type: object
+  dto.TranslatedIntoLanguageCreateRequest:
+    properties:
+      language_name:
+        type: string
+      notes:
+        type: string
+      translator_name:
+        type: string
+      work_title:
+        type: string
+    required:
+    - language_name
+    - translator_name
+    - work_title
+    type: object
+  dto.TranslatedIntoLanguageResponse:
+    properties:
+      id:
+        type: string
+      language_name:
+        type: string
+      notes:
+        type: string
+      translator_name:
+        type: string
+      work_title:
+        type: string
+    type: object
+  dto.WorkCreateRequest:
+    properties:
+      audience_type:
+        enum:
+        - adult
+        - children
+        type: string
+      category_id:
+        type: string
+      content:
+        type: string
+      description:
+        type: string
+      publish_year:
+        type: integer
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - audience_type
+    - category_id
+    - content
+    - title
+    type: object
+  dto.WorkResponse:
+    properties:
+      audience_type:
+        type: string
+      category_id:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      publish_year:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.JSONResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for Hemra Şirow literary and biography website
+  title: Literary Backend API
+  version: "1.0"
+paths:
+  /api/biography:
+    get:
+      description: Get the author biography
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BiographyResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get biography
+    post:
+      consumes:
+      - application/json
+      description: Create the initial author biography (only used once, when no biography
+        exists yet)
+      parameters:
+      - description: Biography content
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BiographyCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BiographyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      security:
+      - BearerAuth: []
+      summary: Create biography
+      tags:
+      - biography
+    put:
+      consumes:
+      - application/json
+      description: Update the author biography
+      parameters:
+      - description: Biography content
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BiographyUpdateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BiographyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update biography
+  /api/books:
+    get:
+      description: List all books
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.BookResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List books
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Create a new book. Supports JSON or multipart/form-data with optional
+        cover image and PDF upload.
+      parameters:
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Bibliographic info
+        in: formData
+        name: bibliographic_info
+        type: string
+      - description: Page count
+        in: formData
+        name: page_count
+        type: integer
+      - description: Published year
+        in: formData
+        name: published_year
+        type: integer
+      - description: Cover image file
+        in: formData
+        name: cover
+        type: file
+      - description: PDF file
+        in: formData
+        name: pdf
+        type: file
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create book
+  /api/books/{id}:
+    delete:
+      description: Delete an existing book by id
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete book
+    get:
+      description: Get a single book by id
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get book
+    put:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Update an existing book. Supports JSON or multipart/form-data with
+        optional cover image and PDF upload.
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Bibliographic info
+        in: formData
+        name: bibliographic_info
+        type: string
+      - description: Page count
+        in: formData
+        name: page_count
+        type: integer
+      - description: Published year
+        in: formData
+        name: published_year
+        type: integer
+      - description: Cover image file
+        in: formData
+        name: cover
+        type: file
+      - description: PDF file
+        in: formData
+        name: pdf
+        type: file
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update book
+  /api/broadcasts:
+    get:
+      description: List all broadcasts
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.BroadcastResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List broadcasts
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Create a new broadcast. Supports JSON or multipart/form-data with
+        optional audio/video upload.
+      parameters:
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Broadcast date in RFC3339
+        in: formData
+        name: broadcast_date
+        type: string
+      - description: Audio or video file
+        in: formData
+        name: file
+        type: file
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BroadcastResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create broadcast
+  /api/broadcasts/{id}:
+    delete:
+      description: Delete an existing broadcast by id
+      parameters:
+      - description: Broadcast ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete broadcast
+    get:
+      description: Get a single broadcast by id
+      parameters:
+      - description: Broadcast ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BroadcastResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get broadcast
+    put:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Update an existing broadcast. Supports JSON or multipart/form-data
+        with optional audio/video upload.
+      parameters:
+      - description: Broadcast ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Broadcast date in RFC3339
+        in: formData
+        name: broadcast_date
+        type: string
+      - description: Audio or video file
+        in: formData
+        name: file
+        type: file
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BroadcastResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update broadcast
+  /api/categories:
+    get:
+      description: List all categories
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CategoryResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List categories
+    post:
+      consumes:
+      - application/json
+      description: Create a new category
+      parameters:
+      - description: category payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoryCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CategoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create category
+  /api/categories/{id}:
+    delete:
+      description: Delete an existing category by id
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete category
+    get:
+      description: Get a single category by id
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CategoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get category
+    put:
+      consumes:
+      - application/json
+      description: Update an existing category by id
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: category payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoryCreateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CategoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update category
+  /api/films:
+    get:
+      description: List all films
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.FilmResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List films
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Create a new film. Supports JSON or multipart/form-data with optional
+        video upload.
+      parameters:
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Release year
+        in: formData
+        name: release_year
+        type: integer
+      - description: Director
+        in: formData
+        name: director
+        type: string
+      - description: Based on scenario
+        in: formData
+        name: based_on_scenario
+        type: boolean
+      - description: Video file
+        in: formData
+        name: file
+        type: file
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.FilmResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create film
+  /api/films/{id}:
+    delete:
+      description: Delete an existing film by id
+      parameters:
+      - description: Film ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete film
+    get:
+      description: Get a single film by id
+      parameters:
+      - description: Film ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FilmResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get film
+    put:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Update an existing film. Supports JSON or multipart/form-data with
+        optional video upload.
+      parameters:
+      - description: Film ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Release year
+        in: formData
+        name: release_year
+        type: integer
+      - description: Director
+        in: formData
+        name: director
+        type: string
+      - description: Based on scenario
+        in: formData
+        name: based_on_scenario
+        type: boolean
+      - description: Video file
+        in: formData
+        name: file
+        type: file
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FilmResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update film
+  /api/personal-letters:
+    get:
+      description: List all personal letters
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.PersonalLetterResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List personal letters
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Create a new personal letter. Supports JSON or multipart/form-data
+        with optional scan upload.
+      parameters:
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Content
+        in: formData
+        name: content
+        required: true
+        type: string
+      - description: Letter date in RFC3339
+        in: formData
+        name: letter_date
+        type: string
+      - description: Scan image or PDF
+        in: formData
+        name: scan
+        type: file
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.PersonalLetterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create personal letter
+  /api/personal-letters/{id}:
+    delete:
+      description: Delete an existing personal letter by id
+      parameters:
+      - description: Personal letter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete personal letter
+    get:
+      description: Get a single personal letter by id
+      parameters:
+      - description: Personal letter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PersonalLetterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get personal letter
+    put:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Update an existing personal letter. Supports JSON or multipart/form-data
+        with optional scan upload.
+      parameters:
+      - description: Personal letter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Content
+        in: formData
+        name: content
+        type: string
+      - description: Letter date in RFC3339
+        in: formData
+        name: letter_date
+        type: string
+      - description: Scan image or PDF
+        in: formData
+        name: scan
+        type: file
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PersonalLetterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update personal letter
+  /api/photo-archive:
+    get:
+      description: List all photo archive entries
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.PhotoArchiveResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List photo archive
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Create a new photo archive entry. Supports JSON or multipart/form-data
+        with optional image upload.
+      parameters:
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Description
+        in: formData
+        name: description
+        type: string
+      - description: Category
+        in: formData
+        name: category
+        type: string
+      - description: Image file
+        in: formData
+        name: image
+        type: file
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.PhotoArchiveResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create photo archive entry
+  /api/photo-archive/{id}:
+    delete:
+      description: Delete an existing photo archive entry by id
+      parameters:
+      - description: Photo archive ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete photo archive entry
+    get:
+      description: Get a single photo archive entry by id
+      parameters:
+      - description: Photo archive ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PhotoArchiveResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get photo archive
+    put:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: Update an existing photo archive entry. Supports JSON or multipart/form-data
+        with optional image upload.
+      parameters:
+      - description: Photo archive ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Description
+        in: formData
+        name: description
+        type: string
+      - description: Image file
+        in: formData
+        name: image
+        type: file
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PhotoArchiveResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update photo archive entry
+  /api/theatre-productions:
+    get:
+      description: List all theatre productions
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TheatreResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List theatre productions
+    post:
+      consumes:
+      - application/json
+      description: Create a new theatre production
+      parameters:
+      - description: Theatre production data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TheatreCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.TheatreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create theatre production
+  /api/theatre-productions/{id}:
+    delete:
+      description: Delete an existing theatre production by id
+      parameters:
+      - description: Theatre production ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete theatre production
+    get:
+      description: Get a single theatre production by id
+      parameters:
+      - description: Theatre production ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TheatreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get theatre production
+    put:
+      consumes:
+      - application/json
+      description: Update an existing theatre production
+      parameters:
+      - description: Theatre production ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Theatre production data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TheatreCreateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TheatreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update theatre production
+  /api/translations/by-author:
+    get:
+      description: List all translations by author
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TranslatedByAuthorResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List translations by author
+    post:
+      consumes:
+      - application/json
+      description: Create a new translation by author
+      parameters:
+      - description: Translation by author data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TranslatedByAuthorCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.TranslatedByAuthorResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create translation by author
+  /api/translations/by-author/{id}:
+    delete:
+      description: Delete an existing translation by author by id
+      parameters:
+      - description: Translation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete translation by author
+    get:
+      description: Get a single translation by author by id
+      parameters:
+      - description: Translation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TranslatedByAuthorResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get translation by author
+  /api/translations/into-language:
+    get:
+      description: List all translations into language
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TranslatedIntoLanguageResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List translations into language
+    post:
+      consumes:
+      - application/json
+      description: Create a new translation into language
+      parameters:
+      - description: Translation into language data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TranslatedIntoLanguageCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.TranslatedIntoLanguageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create translation into language
+  /api/translations/into-language/{id}:
+    delete:
+      description: Delete an existing translation into language by id
+      parameters:
+      - description: Translation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete translation into language
+    get:
+      description: Get a single translation into language by id
+      parameters:
+      - description: Translation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TranslatedIntoLanguageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get translation into language
+  /api/works:
+    get:
+      description: List works with optional search, filters and pagination
+      parameters:
+      - description: search keywords
+        in: query
+        name: search
+        type: string
+      - description: category id
+        in: query
+        name: category
+        type: string
+      - description: audience type
+        in: query
+        name: audience_type
+        type: string
+      - description: publish year
+        in: query
+        name: year
+        type: integer
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: limit
+        in: query
+        name: limit
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List works
+    post:
+      consumes:
+      - application/json
+      description: Create a new work
+      parameters:
+      - description: work payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.WorkCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.WorkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Create work
+  /api/works/{id}:
+    delete:
+      description: Delete an existing work by id
+      parameters:
+      - description: work id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Delete work
+    get:
+      description: Get single work by id
+      parameters:
+      - description: work id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.WorkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Get work
+    put:
+      consumes:
+      - application/json
+      description: Update an existing work by id
+      parameters:
+      - description: work id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: work payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.WorkCreateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.WorkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: Update work
+schemes:
+- http
+- https
+swagger: "2.0"

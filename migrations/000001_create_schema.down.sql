@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS external_links;
+DROP TABLE IF EXISTS personal_letters;
+DROP TABLE IF EXISTS biography;
+DROP TABLE IF EXISTS photo_archive;
+DROP TABLE IF EXISTS films;
+DROP TABLE IF EXISTS theatre_productions;
+DROP TABLE IF EXISTS broadcasts;
+DROP TABLE IF EXISTS book_photos;
+DROP TABLE IF EXISTS books;
+DROP TABLE IF EXISTS criticism_articles;
+DROP TABLE IF EXISTS translated_into_languages;
+DROP TABLE IF EXISTS translated_by_author;
+DROP TABLE IF EXISTS works;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS users;
+
+DROP TYPE IF EXISTS photo_category;
+DROP TYPE IF EXISTS film_type;
+DROP TYPE IF EXISTS file_type;
+DROP TYPE IF EXISTS broadcast_type;
+DROP TYPE IF EXISTS audience_type;
