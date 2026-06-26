@@ -93,24 +93,44 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if b.ID == uuid.Nil { b.ID = uuid.New() }
 		b.CreatedAt = time.Now()
 
+		var coverPath, pdfPath string
+		var savedCover, savedPDF bool
+
 		// handle cover
 		cover, ch, err := r.FormFile("cover")
 		if err == nil {
 			defer cover.Close()
-			path, err := h.store.Save(cover, ch.Filename, "image")
+			coverPath, err := h.store.Save(cover, ch.Filename, "image")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			b.CoverImagePath = &path
+			savedCover = true
+			b.CoverImagePath = &coverPath
 		}
 		// handle pdf
 		pdf, ph, err := r.FormFile("pdf")
 		if err == nil {
 			defer pdf.Close()
-			path, err := h.store.Save(pdf, ph.Filename, "book")
-			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			b.PDFPath = &path
+			pdfPath, err := h.store.Save(pdf, ph.Filename, "book")
+			if err != nil { 
+				if savedCover {
+					_ = h.store.Remove(coverPath)
+				}
+				WriteError(w, http.StatusBadRequest, err.Error()); 
+				return 
+			}
+			savedPDF = true
+			b.PDFPath = &pdfPath
 		}
 
-		if err := h.createUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.createUC.Execute(r.Context(), &b); err != nil { 
+			if savedCover {
+				_ = h.store.Remove(coverPath)
+			}
+			if savedPDF {
+				_ = h.store.Remove(pdfPath)
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error()); 
+			return 
+		}
 		WriteJSON(w, http.StatusCreated, bookResponse(&b))
 		return
 	}
@@ -119,7 +139,10 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	b := entity.Book{ID: uuid.New(), Title: req.Title, BibliographicInfo: req.BibliographicInfo, PageCount: req.PageCount, PublishedYear: req.PublishedYear, CreatedAt: time.Now()}
-	if err := h.createUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.createUC.Execute(r.Context(), &b); err != nil { 
+		WriteError(w, http.StatusInternalServerError, err.Error()); 
+		return 
+	}
 	WriteJSON(w, http.StatusCreated, bookResponse(&b))
 }
 
@@ -152,22 +175,40 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if v := r.FormValue("page_count"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PageCount = &i } }
 		if v := r.FormValue("published_year"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PublishedYear = &i } }
 
+		var coverPath, pdfPath string
+		var savedCover, savedPDF bool
+
 		cover, ch, err := r.FormFile("cover")
 		if err == nil {
 			defer cover.Close()
-			path, err := h.store.Save(cover, ch.Filename, "image")
+			coverpath, err := h.store.Save(cover, ch.Filename, "image")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			b.CoverImagePath = &path
+			savedCover = true
+			b.CoverImagePath = &coverpath
 		}
 		pdf, ph, err := r.FormFile("pdf")
 		if err == nil {
 			defer pdf.Close()
 			path, err := h.store.Save(pdf, ph.Filename, "book")
-			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+			if err != nil { 
+				if savedCover {
+					_ = h.store.Remove(coverPath)
+				}
+				WriteError(w, http.StatusBadRequest, err.Error()); return }
+			savedPDF = true
 			b.PDFPath = &path
 		}
 
-		if err := h.updateUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.updateUC.Execute(r.Context(), &b); err != nil { 
+			if savedCover {
+				_ = h.store.Remove(coverPath)
+			}
+			if savedPDF {
+				_ = h.store.Remove(pdfPath)
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error()); return 
+			return
+		}
 		WriteJSON(w, http.StatusOK, bookResponse(&b))
 		return
 	}

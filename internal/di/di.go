@@ -55,6 +55,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	biographyRepo := pg.NewBiographyRepository(pool)
 	theatreRepo := pg.NewTheatreProductionRepository(pool)
 	categoryRepo := pg.NewCategoryRepository(pool)
+	localStorage := storage.NewLocalStorage(cfg.UploadBasePath)
+    bookPhotoRepo := pg.NewBookPhotoRepository(pool)
 
 	// usecases for works
 	createWorkUC := work.NewCreateWorkUseCase(workRepo)
@@ -67,8 +69,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	createBookUC := book.NewCreateBookUseCase(bookRepo)
 	getBookUC := book.NewGetBookUseCase(bookRepo)
 	listBookUC := book.NewListBooksUseCase(bookRepo)
-	updateBookUC := book.NewUpdateBookUseCase(bookRepo)
-	deleteBookUC := book.NewDeleteBookUseCase(bookRepo)
+	updateBookUC := book.NewUpdateBookUseCase(bookRepo, localStorage)
+	deleteBookUC := book.NewDeleteBookUseCase(bookRepo, bookPhotoRepo, localStorage)
 
 	// broadcasts
 	createBroadcastUC := broadcast.NewCreateBroadcastUseCase(broadcastRepo)

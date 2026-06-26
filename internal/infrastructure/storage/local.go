@@ -56,7 +56,13 @@ func NewLocalStorage(basePath string) *LocalStorage {
 
 func (s *LocalStorage) Remove(path string) error {
 	full := filepath.Join(s.basePath, path)
-	return os.Remove(full)
+	if err := os.Remove(full); err !=nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *LocalStorage) Save(r io.Reader, filename string, typ string) (string, error) {
