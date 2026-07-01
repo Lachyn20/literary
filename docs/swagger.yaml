@@ -532,6 +532,15 @@ paths:
         name: title
         required: true
         type: string
+      - description: 'Broadcast type: tv or radio'
+        in: formData
+        name: broadcast_type
+        required: true
+        type: string
+      - description: Channel name
+        in: formData
+        name: channel_name
+        type: string
       - description: Broadcast date in RFC3339
         in: formData
         name: broadcast_date
@@ -617,6 +626,14 @@ paths:
         in: formData
         name: title
         type: string
+      - description: 'Broadcast type: tv or radio'
+        in: formData
+        name: broadcast_type
+        type: string
+      - description: Channel name
+        in: formData
+        name: channel_name
+        type: string
       - description: Broadcast date in RFC3339
         in: formData
         name: broadcast_date
@@ -625,6 +642,8 @@ paths:
         in: formData
         name: file
         type: file
+      produces:
+      - application/json
       responses:
         "200":
           description: OK

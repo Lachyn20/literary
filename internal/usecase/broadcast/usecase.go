@@ -61,12 +61,27 @@ func (u *UpdateBroadcastUseCase) Execute(ctx context.Context, broadcast *entity.
 
 type DeleteBroadcastUseCase struct {
 	repo repository.BroadcastRepository
+	fileStore repository.FileStorage
 }
 
-func NewDeleteBroadcastUseCase(repo repository.BroadcastRepository) *DeleteBroadcastUseCase {
-	return &DeleteBroadcastUseCase{repo: repo}
+func NewDeleteBroadcastUseCase(repo repository.BroadcastRepository, fileStore repository.FileStorage) *DeleteBroadcastUseCase {
+	return &DeleteBroadcastUseCase{repo: repo, fileStore: fileStore}
 }
 
 func (u *DeleteBroadcastUseCase) Execute(ctx context.Context, id uuid.UUID) error {
-	return u.repo.Delete(ctx, id)
+
+	broadcast, err := u.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := u.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	if broadcast.FilePath != nil && *broadcast.FilePath != "" {
+		_ = u.fileStore.Remove(*broadcast.FilePath)
+	}
+
+	return nil
 }

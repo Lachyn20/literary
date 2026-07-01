@@ -395,6 +395,19 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Broadcast type: tv or radio",
+                        "name": "broadcast_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Channel name",
+                        "name": "channel_name",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
                         "description": "Broadcast date in RFC3339",
                         "name": "broadcast_date",
                         "in": "formData"
@@ -468,6 +481,9 @@ const docTemplate = `{
                     "application/json",
                     "multipart/form-data"
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "summary": "Update broadcast",
                 "parameters": [
                     {
@@ -481,6 +497,18 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Title",
                         "name": "title",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Broadcast type: tv or radio",
+                        "name": "broadcast_type",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Channel name",
+                        "name": "channel_name",
                         "in": "formData"
                     },
                     {

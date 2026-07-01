@@ -68,6 +68,8 @@ func (h *BroadcastHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Accept multipart/form-data
 // @Param title formData string true "Title"
+// @Param broadcast_type formData string true "Broadcast type: tv or radio"
+// @Param channel_name formData string false "Channel name"
 // @Param broadcast_date formData string false "Broadcast date in RFC3339"
 // @Param file formData file false "Audio or video file"
 // @Success 201 {object} dto.BroadcastResponse
@@ -79,23 +81,71 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(64 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
 		var b entity.Broadcast
 		b.Title = r.FormValue("title")
+
+		broadcastType := r.FormValue("broadcast_type")
+		if broadcastType != "tv" && broadcastType != "radio" {
+			WriteError(w, http.StatusBadRequest, "broadcast_type must be 'tv' or 'radio'")
+			return
+		}
+		b.BroadcastType = entity.BroadcastType(broadcastType)
+
+		b.ChannelName = r.FormValue("channel_name")
+
 		if v := r.FormValue("broadcast_date"); v != "" { if t, err := time.Parse(time.RFC3339, v); err == nil { b.BroadcastDate = t } }
 		if b.ID == uuid.Nil { b.ID = uuid.New() }
 		b.CreatedAt = time.Now()
 
+		var savedPath string
+		var savedFile bool
+
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
+
+			lower := strings.ToLower(fh.Filename)
+			isVideo := strings.Contains(lower, ".mp4") || strings.Contains(lower, ".mov") || strings.Contains(lower, ".mkv")
+			isAudio := strings.Contains(lower, ".mp3") || strings.Contains(lower, ".wav") || strings.Contains(lower, ".aac")
+			if !isVideo && !isAudio {
+				WriteError(w, http.StatusBadRequest, "unsupported file type")
+				return
+			}
+
+			if broadcastType == "tv" && !isVideo {
+				WriteError(w, http.StatusBadRequest, "tv broadcasts require a video file")
+				return
+			}
+
+			if broadcastType == "radio" && !isAudio {
+				WriteError(w, http.StatusBadRequest, "radio broadcasts require an audio file")
+				return
+			}
 			// choose type by extension
 			typ := "audio"
-			if strings.Contains(strings.ToLower(fh.Filename), ".mp4") || strings.Contains(strings.ToLower(fh.Filename), ".mov") || strings.Contains(strings.ToLower(fh.Filename), ".mkv") {
+			if isVideo {
 				typ = "video"
 			}
-			path, err := h.store.Save(file, fh.Filename, typ)
+			savedPath, err := h.store.Save(file, fh.Filename, typ)
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			b.FilePath = &path
+		
+			savedFile = true
+			b.FilePath = &savedPath
+			b.FileType = entity.FileType(typ)
+
+			fileType := "audio"
+			if typ == "video" {
+				fileType = "video"
+			}
+			b.FileType = entity.FileType(fileType)
 		}
-		if err := h.createUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+			
+            if err := h.createUC.Execute(r.Context(), &b); err != nil {
+			 if savedFile {
+			    	_ = h.store.Remove(savedPath)
+			    }
+			    WriteError(w, http.StatusInternalServerError, err.Error())
+			    return
+	    	}
+ 
 		WriteJSON(w, http.StatusCreated, broadcastResponse(&b))
 		return
 	}
@@ -113,8 +163,11 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Description Update an existing broadcast. Supports JSON or multipart/form-data with optional audio/video upload.
 // @Accept json
 // @Accept multipart/form-data
+// @Produce json
 // @Param id path string true "Broadcast ID"
 // @Param title formData string false "Title"
+// @Param broadcast_type formData string false "Broadcast type: tv or radio"
+// @Param channel_name formData string false "Channel name"
 // @Param broadcast_date formData string false "Broadcast date in RFC3339"
 // @Param file formData file false "Audio or video file"
 // @Success 200 {object} dto.BroadcastResponse
@@ -125,34 +178,96 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
+
+	old , err := h.getUC.Execute(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	b := *old
+
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
 		if err := r.ParseMultipartForm(64 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
-		var b entity.Broadcast
-		b.ID = id
-		b.Title = r.FormValue("title")
+
+		if v := r.FormValue("title"); v != "" { b.Title = v }
+		if v := r.FormValue("broadcast_type"); v != "" {
+			if v != "tv" && v != "radio" {
+				WriteError(w, http.StatusBadRequest, "broadcast_type must be 'tv' or 'radio'")
+				return
+			}
+			b.BroadcastType = entity.BroadcastType(v)
+		}
+		if v := r.FormValue("channel_name"); v != "" { b.ChannelName = v }
 		if v := r.FormValue("broadcast_date"); v != "" { if t, err := time.Parse(time.RFC3339, v); err == nil { b.BroadcastDate = t } }
+		
+		var savedFile bool
+		var newFilePath string
 
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
+			lower := strings.ToLower(fh.Filename)
+			isVideo := strings.Contains(lower, ".mp4") || strings.Contains(lower, ".mov") || strings.Contains(lower, ".mkv")
+			isAudio := strings.Contains(lower, ".mp3") || strings.Contains(lower, ".wav") || strings.Contains(lower, ".aac")
+
+			if !isVideo && !isAudio {
+				WriteError(w, http.StatusBadRequest, "unsupported file type")
+				return
+			}
+
+			currentType := string(b.BroadcastType)
+			if currentType == "tv" && !isVideo {
+				WriteError(w, http.StatusBadRequest, "tv broadcasts require a video file")
+				return
+			}
+
+			if currentType == "radio" && !isAudio {	
+				WriteError(w, http.StatusBadRequest, "radio broadcasts require an audio file")
+				return
+			}
+
 			typ := "audio"
-			if strings.Contains(strings.ToLower(fh.Filename), ".mp4") || strings.Contains(strings.ToLower(fh.Filename), ".mov") || strings.Contains(strings.ToLower(fh.Filename), ".mkv") {
+			if isVideo {
 				typ = "video"
 			}
-			path, err := h.store.Save(file, fh.Filename, typ)
+			newFilePath, err = h.store.Save(file, fh.Filename, typ)
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			b.FilePath = &path
+			savedFile = true
+			b.FilePath = &newFilePath
+			b.FileType = entity.FileType(typ)
 		}
-		if err := h.updateUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+
+        if err := h.updateUC.Execute(r.Context(), &b); err != nil {
+			if savedFile {
+				_ = h.store.Remove(newFilePath) // täze ýazylan faýly yzyna poz
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Täze faýl ýazyldy we DB täzelendi -> köne faýly poz
+		if savedFile && old.FilePath != nil && *old.FilePath != newFilePath {
+			_ = h.store.Remove(*old.FilePath)
+		}
+
 		WriteJSON(w, http.StatusOK, broadcastResponse(&b))
 		return
 	}
 
+	// === JSON bölegi - şol bir partial update ýörelgesi ===
 	var req dto.BroadcastCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	b := entity.Broadcast{ID: id, Title: req.Title, BroadcastType: entity.BroadcastType(req.BroadcastType), ChannelName: req.ChannelName}
-	if req.BroadcastDate != nil { b.BroadcastDate = *req.BroadcastDate }
+
+	if req.Title != "" {
+		b.Title = req.Title
+	}
+	if req.BroadcastType != "" {
+		b.BroadcastType = entity.BroadcastType(req.BroadcastType)
+	}
+	if req.ChannelName != "" {
+		b.ChannelName = req.ChannelName
+	}
+	if req.BroadcastDate != nil {
+		b.BroadcastDate = *req.BroadcastDate
+	}
+
 	if err := h.updateUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, broadcastResponse(&b))
 }
