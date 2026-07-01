@@ -56,6 +56,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	theatreRepo := pg.NewTheatreProductionRepository(pool)
 	categoryRepo := pg.NewCategoryRepository(pool)
 	localStorage := storage.NewLocalStorage(cfg.UploadBasePath)
+
     bookPhotoRepo := pg.NewBookPhotoRepository(pool)
 
 	// usecases for works
@@ -77,7 +78,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	getBroadcastUC := broadcast.NewGetBroadcastUseCase(broadcastRepo)
 	listBroadcastUC := broadcast.NewListBroadcastsUseCase(broadcastRepo)
 	updateBroadcastUC := broadcast.NewUpdateBroadcastUseCase(broadcastRepo)
-	deleteBroadcastUC := broadcast.NewDeleteBroadcastUseCase(broadcastRepo)
+	deleteBroadcastUC := broadcast.NewDeleteBroadcastUseCase(broadcastRepo, localStorage)
 
 	// films
 	createFilmUC := film.NewCreateFilmUseCase(filmRepo)
@@ -130,16 +131,13 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	updateTheatreUC := theatre.NewUpdateTheatreProductionUseCase(theatreRepo)
 	deleteTheatreUC := theatre.NewDeleteTheatreProductionUseCase(theatreRepo)
 
-	// storage adapter
-	lstore := storage.NewLocalStorage(cfg.UploadBasePath)
-
 	// handlers
 	workHandler := handler.NewWorkHandler(createWorkUC, getWorkUC, listWorkUC, updateWorkUC, deleteWorkUC)
-	bookHandler := handler.NewBookHandler(createBookUC, getBookUC, listBookUC, updateBookUC, deleteBookUC, lstore)
-	broadcastHandler := handler.NewBroadcastHandler(createBroadcastUC, getBroadcastUC, listBroadcastUC, updateBroadcastUC, deleteBroadcastUC, lstore)
-	filmHandler := handler.NewFilmHandler(createFilmUC, getFilmUC, listFilmUC, updateFilmUC, deleteFilmUC, lstore)
-	photoHandler := handler.NewPhotoArchiveHandler(createPhotoUC, getPhotoUC, listPhotoUC, updatePhotoUC, deletePhotoUC, lstore)
-	plHandler := handler.NewPersonalLetterHandler(createPLUC, getPLUC, listPLUC, updatePLUC, deletePLUC, lstore)
+	bookHandler := handler.NewBookHandler(createBookUC, getBookUC, listBookUC, updateBookUC, deleteBookUC, localStorage)
+	broadcastHandler := handler.NewBroadcastHandler(createBroadcastUC, getBroadcastUC, listBroadcastUC, updateBroadcastUC, deleteBroadcastUC, localStorage)
+	filmHandler := handler.NewFilmHandler(createFilmUC, getFilmUC, listFilmUC, updateFilmUC, deleteFilmUC, localStorage)
+	photoHandler := handler.NewPhotoArchiveHandler(createPhotoUC, getPhotoUC, listPhotoUC, updatePhotoUC, deletePhotoUC, localStorage)
+	plHandler := handler.NewPersonalLetterHandler(createPLUC, getPLUC, listPLUC, updatePLUC, deletePLUC, localStorage)
 	translationHandler := handler.NewTranslationHandler(createByAuthorUC, getByAuthorUC, listByAuthorUC, deleteByAuthorUC, createIntoUC, getIntoUC, listIntoUC, deleteIntoUC)
 	bioHandler := handler.NewBiographyHandler(getBiographyUC, createBiographyUC, updateBiographyUC)
 	categoryHandler := handler.NewCategoryHandler(createCategoryUC, getCategoryUC, listCategoriesUC, updateCategoryUC, deleteCategoryUC)
