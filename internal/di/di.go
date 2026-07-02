@@ -25,7 +25,7 @@ import (
 )
 
 type Container struct {
-	Router http.Handler
+	Router   http.Handler
 	Shutdown func(context.Context) error
 }
 
@@ -57,14 +57,14 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	categoryRepo := pg.NewCategoryRepository(pool)
 	localStorage := storage.NewLocalStorage(cfg.UploadBasePath)
 
-    bookPhotoRepo := pg.NewBookPhotoRepository(pool)
+	bookPhotoRepo := pg.NewBookPhotoRepository(pool)
 
 	// usecases for works
 	createWorkUC := work.NewCreateWorkUseCase(workRepo)
 	getWorkUC := work.NewGetWorkUseCase(workRepo)
 	listWorkUC := work.NewListWorksUseCase(workRepo)
-	updateWorkUC := work.NewUpdateWorkUseCase(workRepo)
-	deleteWorkUC := work.NewDeleteWorkUseCase(workRepo)
+	updateWorkUC := work.NewUpdateWorkUseCase(workRepo, localStorage)
+	deleteWorkUC := work.NewDeleteWorkUseCase(workRepo, localStorage)
 
 	// usecases for books
 	createBookUC := book.NewCreateBookUseCase(bookRepo)
@@ -132,14 +132,14 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	deleteTheatreUC := theatre.NewDeleteTheatreProductionUseCase(theatreRepo)
 
 	// handlers
-	workHandler := handler.NewWorkHandler(createWorkUC, getWorkUC, listWorkUC, updateWorkUC, deleteWorkUC)
+	workHandler := handler.NewWorkHandler(createWorkUC, getWorkUC, listWorkUC, updateWorkUC, deleteWorkUC, localStorage)
 	bookHandler := handler.NewBookHandler(createBookUC, getBookUC, listBookUC, updateBookUC, deleteBookUC, localStorage)
 	broadcastHandler := handler.NewBroadcastHandler(createBroadcastUC, getBroadcastUC, listBroadcastUC, updateBroadcastUC, deleteBroadcastUC, localStorage)
 	filmHandler := handler.NewFilmHandler(createFilmUC, getFilmUC, listFilmUC, updateFilmUC, deleteFilmUC, localStorage)
 	photoHandler := handler.NewPhotoArchiveHandler(createPhotoUC, getPhotoUC, listPhotoUC, updatePhotoUC, deletePhotoUC, localStorage)
 	plHandler := handler.NewPersonalLetterHandler(createPLUC, getPLUC, listPLUC, updatePLUC, deletePLUC, localStorage)
 	translationHandler := handler.NewTranslationHandler(createByAuthorUC, getByAuthorUC, listByAuthorUC, deleteByAuthorUC, createIntoUC, getIntoUC, listIntoUC, deleteIntoUC)
-	bioHandler := handler.NewBiographyHandler(getBiographyUC, createBiographyUC, updateBiographyUC)
+	bioHandler := handler.NewBiographyHandler(getBiographyUC, createBiographyUC, updateBiographyUC, localStorage)
 	categoryHandler := handler.NewCategoryHandler(createCategoryUC, getCategoryUC, listCategoriesUC, updateCategoryUC, deleteCategoryUC)
 	theatreHandler := handler.NewTheatreHandler(createTheatreUC, getTheatreUC, listTheatreUC, updateTheatreUC, deleteTheatreUC)
 

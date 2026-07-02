@@ -123,20 +123,12 @@ func biographyResponse(b *entity.Biography) dto.BiographyResponse {
 }
 
 func workResponse(w *entity.Work) dto.WorkResponse {
-	var content string
-	if w.Content != nil {
-		content = *w.Content
-	}
-	var description string
-	if w.Description != nil {
-		description = *w.Description
-	}
 	return dto.WorkResponse{
 		ID:           w.ID.String(),
 		Title:        w.Title,
 		CategoryID:   w.CategoryID.String(),
-		Content:      content,
-		Description:  description,
+		FilePath:     w.FilePath,
+		Description:  w.Description,
 		AudienceType: string(w.AudienceType),
 		PublishYear:  w.PublishYear,
 		CreatedAt:    w.CreatedAt,

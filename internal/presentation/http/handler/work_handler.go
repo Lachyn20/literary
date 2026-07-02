@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,10 +22,11 @@ type WorkHandler struct {
 	listUC   *work.ListWorksUseCase
 	updateUC *work.UpdateWorkUseCase
 	deleteUC *work.DeleteWorkUseCase
+	store    repository.FileStorage
 }
 
-func NewWorkHandler(create *work.CreateWorkUseCase, get *work.GetWorkUseCase, list *work.ListWorksUseCase, update *work.UpdateWorkUseCase, del *work.DeleteWorkUseCase) *WorkHandler {
-	return &WorkHandler{createUC: create, getUC: get, listUC: list, updateUC: update, deleteUC: del}
+func NewWorkHandler(create *work.CreateWorkUseCase, get *work.GetWorkUseCase, list *work.ListWorksUseCase, update *work.UpdateWorkUseCase, del *work.DeleteWorkUseCase, store repository.FileStorage) *WorkHandler {
+	return &WorkHandler{createUC: create, getUC: get, listUC: list, updateUC: update, deleteUC: del, store: store}
 }
 
 func (h *WorkHandler) RegisterRoutes(r chi.Router) {
@@ -70,10 +72,14 @@ func (h *WorkHandler) List(w http.ResponseWriter, r *http.Request) {
 	page := 1
 	limit := 20
 	if p := q.Get("page"); p != "" {
-		if pi, err := strconv.Atoi(p); err == nil && pi > 0 { page = pi }
+		if pi, err := strconv.Atoi(p); err == nil && pi > 0 {
+			page = pi
+		}
 	}
 	if l := q.Get("limit"); l != "" {
-		if li, err := strconv.Atoi(l); err == nil && li > 0 { limit = li }
+		if li, err := strconv.Atoi(l); err == nil && li > 0 {
+			limit = li
+		}
 	}
 	filter.Page = page
 	filter.Limit = limit
@@ -112,12 +118,106 @@ func (h *WorkHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Summary Create work
 // @Description Create a new work
 // @Accept json
+// @Accept multipart/form-data
 // @Param payload body dto.WorkCreateRequest true "work payload"
+// @Param title formData string true "Title"
+// @Param category_id formData string true "Category ID"
+// @Param audience_type formData string true "Audience type: adult or children"
+// @Param description formData string false "Description"
+// @Param publish_year formData int false "Publish year"
+// @Param file formData file false "Work file (.pdf or .txt)"
 // @Success 201 {object} dto.WorkResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/works [post]
 func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
+	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
+		if err := r.ParseMultipartForm(64 << 20); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid multipart")
+			return
+		}
+
+		title := r.FormValue("title")
+		if title == "" {
+			WriteError(w, http.StatusBadRequest, "title is required")
+			return
+		}
+
+		categoryID := r.FormValue("category_id")
+		if categoryID == "" {
+			WriteError(w, http.StatusBadRequest, "category_id is required")
+			return
+		}
+		catID, err := uuid.Parse(categoryID)
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "category_id must be a valid UUID")
+			return
+		}
+
+		audienceType := r.FormValue("audience_type")
+		if audienceType != "adult" && audienceType != "children" {
+			WriteError(w, http.StatusBadRequest, "audience_type must be 'adult' or 'children'")
+			return
+		}
+
+		var description *string
+		if d := r.FormValue("description"); d != "" {
+			description = &d
+		}
+
+		var publishYear *int
+		if y := r.FormValue("publish_year"); y != "" {
+			yi, err := strconv.Atoi(y)
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, "publish_year must be a valid integer")
+				return
+			}
+			publishYear = &yi
+		}
+
+		now := time.Now()
+		work := &entity.Work{
+			ID:           uuid.New(),
+			Title:        title,
+			CategoryID:   catID,
+			Description:  description,
+			AudienceType: entity.AudienceType(audienceType),
+			PublishYear:  publishYear,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+
+		var savedPath string
+		savedFile := false
+		file, fh, err := r.FormFile("file")
+		if err == nil {
+			defer file.Close()
+			lower := strings.ToLower(fh.Filename)
+			if !strings.HasSuffix(lower, ".pdf") && !strings.HasSuffix(lower, ".txt") {
+				WriteError(w, http.StatusBadRequest, "only pdf and txt files are allowed")
+				return
+			}
+
+			savedPath, err = h.store.Save(file, fh.Filename, "work")
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			savedFile = true
+			work.FilePath = &savedPath
+		}
+
+		if err := h.createUC.Execute(r.Context(), work); err != nil {
+			if savedFile {
+				_ = h.store.Remove(savedPath)
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		WriteJSON(w, http.StatusCreated, workResponse(work))
+		return
+	}
+
 	var req dto.WorkCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid payload")
@@ -130,15 +230,16 @@ func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	catID, _ := uuid.Parse(req.CategoryID)
 	now := time.Now()
 	work := &entity.Work{
-		ID: uuid.New(),
-		Title: req.Title,
-		CategoryID: catID,
-		Content: &req.Content,
-		Description: &req.Description,
+		ID:           uuid.New(),
+		Title:        req.Title,
+		CategoryID:   catID,
 		AudienceType: entity.AudienceType(req.AudienceType),
-		PublishYear: req.PublishYear,
-		CreatedAt: now,
-		UpdatedAt: now,
+		PublishYear:  req.PublishYear,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if req.Description != "" {
+		work.Description = &req.Description
 	}
 	if err := h.createUC.Execute(r.Context(), work); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -151,7 +252,13 @@ func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Description Update an existing work by id
 // @Param id path string true "work id"
 // @Accept json
-// @Param payload body dto.WorkCreateRequest true "work payload"
+// @Accept multipart/form-data
+// @Param title formData string false "Title"
+// @Param category_id formData string false "Category ID"
+// @Param audience_type formData string false "Audience type: adult or children"
+// @Param description formData string false "Description"
+// @Param publish_year formData int false "Publish year"
+// @Param file formData file false "Work file (.pdf or .txt)"
 // @Success 200 {object} dto.WorkResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -163,28 +270,124 @@ func (h *WorkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+
+	oldWork, err := h.getUC.Execute(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
+		if err := r.ParseMultipartForm(64 << 20); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid multipart")
+			return
+		}
+
+		if v := r.FormValue("title"); v != "" {
+			oldWork.Title = v
+		}
+		if v := r.FormValue("category_id"); v != "" {
+			catID, err := uuid.Parse(v)
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, "category_id must be a valid UUID")
+				return
+			}
+			oldWork.CategoryID = catID
+		}
+		if v := r.FormValue("audience_type"); v != "" {
+			if v != "adult" && v != "children" {
+				WriteError(w, http.StatusBadRequest, "audience_type must be 'adult' or 'children'")
+				return
+			}
+			oldWork.AudienceType = entity.AudienceType(v)
+		}
+		if v := r.FormValue("description"); v != "" {
+			oldWork.Description = &v
+		}
+		if v := r.FormValue("publish_year"); v != "" {
+			yi, err := strconv.Atoi(v)
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, "publish_year must be a valid integer")
+				return
+			}
+			oldWork.PublishYear = &yi
+		}
+
+		oldWork.UpdatedAt = time.Now()
+		prevFilePath := oldWork.FilePath
+		var savedPath string
+		savedFile := false
+
+		file, fh, err := r.FormFile("file")
+		if err == nil {
+			defer file.Close()
+			lower := strings.ToLower(fh.Filename)
+			if !strings.HasSuffix(lower, ".pdf") && !strings.HasSuffix(lower, ".txt") {
+				WriteError(w, http.StatusBadRequest, "only pdf and txt files are allowed")
+				return
+			}
+
+			savedPath, err = h.store.Save(file, fh.Filename, "work")
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			savedFile = true
+			oldWork.FilePath = &savedPath
+		}
+
+		if err := h.updateUC.Execute(r.Context(), oldWork); err != nil {
+			if savedFile {
+				_ = h.store.Remove(savedPath)
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if savedFile && prevFilePath != nil && (oldWork.FilePath == nil || *prevFilePath != *oldWork.FilePath) {
+			_ = h.store.Remove(*prevFilePath)
+		}
+
+		WriteJSON(w, http.StatusOK, workResponse(oldWork))
+		return
+	}
+
 	var req dto.WorkCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
-	catID, _ := uuid.Parse(req.CategoryID)
-	now := time.Now()
-	work := &entity.Work{
-		ID: id,
-		Title: req.Title,
-		CategoryID: catID,
-		Content: &req.Content,
-		Description: &req.Description,
-		AudienceType: entity.AudienceType(req.AudienceType),
-		PublishYear: req.PublishYear,
-		UpdatedAt: now,
+	if req.Title != "" {
+		oldWork.Title = req.Title
 	}
-	if err := h.updateUC.Execute(r.Context(), work); err != nil {
+	if req.CategoryID != "" {
+		catID, err := uuid.Parse(req.CategoryID)
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "category_id must be a valid UUID")
+			return
+		}
+		oldWork.CategoryID = catID
+	}
+	if req.AudienceType != "" {
+		if req.AudienceType != "adult" && req.AudienceType != "children" {
+			WriteError(w, http.StatusBadRequest, "audience_type must be 'adult' or 'children'")
+			return
+		}
+		oldWork.AudienceType = entity.AudienceType(req.AudienceType)
+	}
+	if req.Description != "" {
+		oldWork.Description = &req.Description
+	}
+	if req.PublishYear != nil {
+		oldWork.PublishYear = req.PublishYear
+	}
+	oldWork.UpdatedAt = time.Now()
+
+	if err := h.updateUC.Execute(r.Context(), oldWork); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteJSON(w, http.StatusOK, workResponse(work))
+	WriteJSON(w, http.StatusOK, workResponse(oldWork))
 }
 
 // @Summary Delete work

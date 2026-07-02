@@ -22,14 +22,14 @@ func NewWorkRepository(pool *pgxpool.Pool) *WorkRepository {
 }
 
 func (r *WorkRepository) Create(ctx context.Context, work *entity.Work) error {
-	_, err := r.pool.Exec(ctx, `INSERT INTO works (id, title, category_id, content, description, audience_type, publish_year, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, work.ID, work.Title, work.CategoryID, work.Content, work.Description, work.AudienceType, work.PublishYear, work.CreatedAt, work.UpdatedAt)
+	_, err := r.pool.Exec(ctx, `INSERT INTO works (id, title, category_id, file_path, description, audience_type, publish_year, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, work.ID, work.Title, work.CategoryID, work.FilePath, work.Description, work.AudienceType, work.PublishYear, work.CreatedAt, work.UpdatedAt)
 	return err
 }
 
 func (r *WorkRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Work, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,title,category_id,content,description,audience_type,publish_year,created_at,updated_at FROM works WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,title,category_id,file_path,description,audience_type,publish_year,created_at,updated_at FROM works WHERE id=$1`, id)
 	var work entity.Work
-	if err := row.Scan(&work.ID, &work.Title, &work.CategoryID, &work.Content, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
+	if err := row.Scan(&work.ID, &work.Title, &work.CategoryID, &work.FilePath, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, repository.ErrNotFound
 		}
@@ -39,7 +39,7 @@ func (r *WorkRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Wor
 }
 
 func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter) ([]*entity.Work, error) {
-	query := `SELECT id,title,category_id,content,description,audience_type,publish_year,created_at,updated_at FROM works`
+	query := `SELECT id,title,category_id,file_path,description,audience_type,publish_year,created_at,updated_at FROM works`
 	args := []interface{}{}
 	clauses := []string{}
 	if filter.CategoryID != nil {
@@ -67,7 +67,7 @@ func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter)
 	var works []*entity.Work
 	for rows.Next() {
 		var work entity.Work
-		if err := rows.Scan(&work.ID, &work.Title, &work.CategoryID, &work.Content, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
+		if err := rows.Scan(&work.ID, &work.Title, &work.CategoryID, &work.FilePath, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
 			return nil, err
 		}
 		works = append(works, &work)
@@ -76,7 +76,7 @@ func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter)
 }
 
 func (r *WorkRepository) Update(ctx context.Context, work *entity.Work) error {
-	cmd, err := r.pool.Exec(ctx, `UPDATE works SET title=$1, category_id=$2, content=$3, description=$4, audience_type=$5, publish_year=$6, updated_at=$7 WHERE id=$8`, work.Title, work.CategoryID, work.Content, work.Description, work.AudienceType, work.PublishYear, work.UpdatedAt, work.ID)
+	cmd, err := r.pool.Exec(ctx, `UPDATE works SET title=$1, category_id=$2, file_path=$3, description=$4, audience_type=$5, publish_year=$6, updated_at=$7 WHERE id=$8`, work.Title, work.CategoryID, work.FilePath, work.Description, work.AudienceType, work.PublishYear, work.UpdatedAt, work.ID)
 	if err != nil {
 		return err
 	}
@@ -144,13 +144,13 @@ func (r *WorkRepository) Search(ctx context.Context, filter repository.WorkFilte
 	offset := (page - 1) * limit
 
 	// select with rank ordering when searching
-	query := `SELECT id,title,category_id,content,description,audience_type,publish_year,created_at,updated_at FROM works` + whereSQL
+	query := `SELECT id,title,category_id,file_path,description,audience_type,publish_year,created_at,updated_at FROM works` + whereSQL
 	if filter.Search != nil && *filter.Search != "" {
 		// prefer ordering by rank
-		query = `SELECT id,title,category_id,content,description,audience_type,publish_year,created_at,updated_at FROM works` + whereSQL + ` ORDER BY ts_rank(search_vector, plainto_tsquery('simple', $`+strconv.Itoa(len(args))+`)) DESC` + ` LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2)
+		query = `SELECT id,title,category_id,file_path,description,audience_type,publish_year,created_at,updated_at FROM works` + whereSQL + ` ORDER BY ts_rank(search_vector, plainto_tsquery('simple', $` + strconv.Itoa(len(args)) + `)) DESC` + ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
 		args = append(args, limit, offset)
 	} else {
-		query = query + ` ORDER BY created_at DESC LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2)
+		query = query + ` ORDER BY created_at DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
 		args = append(args, limit, offset)
 	}
 
@@ -163,7 +163,7 @@ func (r *WorkRepository) Search(ctx context.Context, filter repository.WorkFilte
 	var works []*entity.Work
 	for rows.Next() {
 		var work entity.Work
-		if err := rows.Scan(&work.ID, &work.Title, &work.CategoryID, &work.Content, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
+		if err := rows.Scan(&work.ID, &work.Title, &work.CategoryID, &work.FilePath, &work.Description, &work.AudienceType, &work.PublishYear, &work.CreatedAt, &work.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		works = append(works, &work)

@@ -225,8 +225,6 @@ definitions:
         type: string
       category_id:
         type: string
-      content:
-        type: string
       description:
         type: string
       publish_year:
@@ -238,7 +236,6 @@ definitions:
     required:
     - audience_type
     - category_id
-    - content
     - title
     type: object
   dto.WorkResponse:
@@ -247,11 +244,11 @@ definitions:
         type: string
       category_id:
         type: string
-      content:
-        type: string
       created_at:
         type: string
       description:
+        type: string
+      file_path:
         type: string
       id:
         type: string
@@ -293,13 +290,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create the initial author biography (only used once, when no biography
-        exists yet)
+      - ' multipart/form-data'
+      description: Create the initial author biography (supports JSON or multipart
+        for image upload)
       parameters:
-      - description: Biography content
+      - description: Biography content (used in multipart)
+        in: formData
+        name: content
+        type: string
+      - description: Biography image file (used in multipart)
+        in: formData
+        name: photo
+        type: file
+      - description: Biography content (used in JSON)
         in: body
         name: request
-        required: true
         schema:
           $ref: '#/definitions/dto.BiographyCreateRequest'
       produces:
@@ -1539,6 +1544,7 @@ paths:
     post:
       consumes:
       - application/json
+      - multipart/form-data
       description: Create a new work
       parameters:
       - description: work payload
@@ -1547,6 +1553,33 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/dto.WorkCreateRequest'
+      - description: Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Category ID
+        in: formData
+        name: category_id
+        required: true
+        type: string
+      - description: 'Audience type: adult or children'
+        in: formData
+        name: audience_type
+        required: true
+        type: string
+      - description: Description
+        in: formData
+        name: description
+        type: string
+      - description: Publish year
+        in: formData
+        name: publish_year
+        type: integer
+      - description: Work file (.pdf or .txt)
+        in: formData
+        name: file
+        type: file
       responses:
         "201":
           description: Created
@@ -1611,6 +1644,7 @@ paths:
     put:
       consumes:
       - application/json
+      - multipart/form-data
       description: Update an existing work by id
       parameters:
       - description: work id
@@ -1618,12 +1652,30 @@ paths:
         name: id
         required: true
         type: string
-      - description: work payload
-        in: body
-        name: payload
-        required: true
-        schema:
-          $ref: '#/definitions/dto.WorkCreateRequest'
+      - description: Title
+        in: formData
+        name: title
+        type: string
+      - description: Category ID
+        in: formData
+        name: category_id
+        type: string
+      - description: 'Audience type: adult or children'
+        in: formData
+        name: audience_type
+        type: string
+      - description: Description
+        in: formData
+        name: description
+        type: string
+      - description: Publish year
+        in: formData
+        name: publish_year
+        type: integer
+      - description: Work file (.pdf or .txt)
+        in: formData
+        name: file
+        type: file
       responses:
         "200":
           description: OK

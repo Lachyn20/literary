@@ -56,25 +56,53 @@ func (u *ListWorksUseCase) Execute(ctx context.Context, filter repository.WorkFi
 }
 
 type UpdateWorkUseCase struct {
-	repo repository.WorkRepository
+	repo      repository.WorkRepository
+	fileStore repository.FileStorage
 }
 
-func NewUpdateWorkUseCase(repo repository.WorkRepository) *UpdateWorkUseCase {
-	return &UpdateWorkUseCase{repo: repo}
+func NewUpdateWorkUseCase(repo repository.WorkRepository, fileStore repository.FileStorage) *UpdateWorkUseCase {
+	return &UpdateWorkUseCase{repo: repo, fileStore: fileStore}
 }
 
 func (u *UpdateWorkUseCase) Execute(ctx context.Context, work *entity.Work) error {
-	return u.repo.Update(ctx, work)
+	oldWork, err := u.repo.GetByID(ctx, work.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := u.repo.Update(ctx, work); err != nil {
+		return err
+	}
+
+	if oldWork.FilePath != nil && (work.FilePath == nil || *oldWork.FilePath != *work.FilePath) {
+		_ = u.fileStore.Remove(*oldWork.FilePath)
+	}
+
+	return nil
 }
 
 type DeleteWorkUseCase struct {
-	repo repository.WorkRepository
+	repo      repository.WorkRepository
+	fileStore repository.FileStorage
 }
 
-func NewDeleteWorkUseCase(repo repository.WorkRepository) *DeleteWorkUseCase {
-	return &DeleteWorkUseCase{repo: repo}
+func NewDeleteWorkUseCase(repo repository.WorkRepository, fileStore repository.FileStorage) *DeleteWorkUseCase {
+	return &DeleteWorkUseCase{repo: repo, fileStore: fileStore}
 }
 
 func (u *DeleteWorkUseCase) Execute(ctx context.Context, id uuid.UUID) error {
-	return u.repo.Delete(ctx, id)
+	work, err := u.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := u.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	if work.FilePath != nil && *work.FilePath != "" {
+		_ = u.fileStore.Remove(*work.FilePath)
+	}
+
+	return nil
 }

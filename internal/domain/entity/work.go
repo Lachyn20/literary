@@ -10,7 +10,7 @@ type Work struct {
 	ID           uuid.UUID
 	Title        string
 	CategoryID   uuid.UUID
-	Content      *string
+	FilePath     *string
 	Description  *string
 	AudienceType AudienceType
 	PublishYear  *int

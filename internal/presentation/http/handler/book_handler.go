@@ -206,7 +206,7 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 			if savedPDF {
 				_ = h.store.Remove(pdfPath)
 			}
-			WriteError(w, http.StatusInternalServerError, err.Error()); return 
+			WriteError(w, http.StatusInternalServerError, err.Error());
 			return
 		}
 		WriteJSON(w, http.StatusOK, bookResponse(&b))

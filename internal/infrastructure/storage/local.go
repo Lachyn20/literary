@@ -24,6 +24,8 @@ var (
 // size limits in bytes
 var sizeLimits = map[string]int64{
 	"book": 100 * 1024 * 1024, // 100MB
+	"work": 50 * 1024 * 1024, // 50MB for work files (pdf, txt)
+	"biography": 10 * 1024 * 1024, // 10MB for biography images
 	"video": 2 * 1024 * 1024 * 1024, // 2GB
 	"image": 20 * 1024 * 1024, // 20MB
 	"audio": 500 * 1024 * 1024, // 500MB
@@ -32,6 +34,8 @@ var sizeLimits = map[string]int64{
 
 var allowedExt = map[string][]string{
 	"book": {".pdf"},
+	"work": {".pdf", ".txt"},
+	"biography": {".jpg", ".jpeg", ".png", ".webp"},
 	"video": {".mp4", ".mov", ".mkv"},
 	"image": {".jpg", ".jpeg", ".png", ".webp"},
 	"audio": {".mp3", ".wav", ".m4a"},
@@ -40,6 +44,8 @@ var allowedExt = map[string][]string{
 
 var allowedMimePrefixes = map[string][]string{
 	"book": {"application/pdf"},
+	"work": {"application/pdf", "text/"},
+	"biography": {"image/"},
 	"video": {"video/"},
 	"image": {"image/"},
 	"audio": {"audio/"},

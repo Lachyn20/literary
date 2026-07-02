@@ -78,9 +78,10 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create the initial author biography (only used once, when no biography exists yet)",
+                "description": "Create the initial author biography (supports JSON or multipart for image upload)",
                 "consumes": [
-                    "application/json"
+                    "application/json",
+                    " multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -91,10 +92,21 @@ const docTemplate = `{
                 "summary": "Create biography",
                 "parameters": [
                     {
-                        "description": "Biography content",
+                        "type": "string",
+                        "description": "Biography content (used in multipart)",
+                        "name": "content",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Biography image file (used in multipart)",
+                        "name": "photo",
+                        "in": "formData"
+                    },
+                    {
+                        "description": "Biography content (used in JSON)",
                         "name": "request",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/dto.BiographyCreateRequest"
                         }
@@ -1898,7 +1910,8 @@ const docTemplate = `{
             "post": {
                 "description": "Create a new work",
                 "consumes": [
-                    "application/json"
+                    "application/json",
+                    "multipart/form-data"
                 ],
                 "summary": "Create work",
                 "parameters": [
@@ -1910,6 +1923,45 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/dto.WorkCreateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Title",
+                        "name": "title",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category ID",
+                        "name": "category_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Audience type: adult or children",
+                        "name": "audience_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Description",
+                        "name": "description",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Publish year",
+                        "name": "publish_year",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Work file (.pdf or .txt)",
+                        "name": "file",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -1971,7 +2023,8 @@ const docTemplate = `{
             "put": {
                 "description": "Update an existing work by id",
                 "consumes": [
-                    "application/json"
+                    "application/json",
+                    "multipart/form-data"
                 ],
                 "summary": "Update work",
                 "parameters": [
@@ -1983,13 +2036,40 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "work payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.WorkCreateRequest"
-                        }
+                        "type": "string",
+                        "description": "Title",
+                        "name": "title",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category ID",
+                        "name": "category_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Audience type: adult or children",
+                        "name": "audience_type",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Description",
+                        "name": "description",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Publish year",
+                        "name": "publish_year",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Work file (.pdf or .txt)",
+                        "name": "file",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -2385,7 +2465,6 @@ const docTemplate = `{
             "required": [
                 "audience_type",
                 "category_id",
-                "content",
                 "title"
             ],
             "properties": {
@@ -2397,9 +2476,6 @@ const docTemplate = `{
                     ]
                 },
                 "category_id": {
-                    "type": "string"
-                },
-                "content": {
                     "type": "string"
                 },
                 "description": {
@@ -2424,13 +2500,13 @@ const docTemplate = `{
                 "category_id": {
                     "type": "string"
                 },
-                "content": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "file_path": {
                     "type": "string"
                 },
                 "id": {
