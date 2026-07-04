@@ -25,6 +25,17 @@ definitions:
     required:
     - content
     type: object
+  dto.BookListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.BookResponse'
+        type: array
+      status:
+        type: string
+      total:
+        type: integer
+    type: object
   dto.BookResponse:
     properties:
       bibliographic_info:
@@ -141,9 +152,12 @@ definitions:
       premiere_date:
         type: string
       theatre_name:
+        maxLength: 255
+        minLength: 1
         type: string
     required:
     - play_title
+    - theatre_name
     type: object
   dto.TheatreResponse:
     properties:
@@ -175,6 +189,17 @@ definitions:
     - original_language
     - work_title
     type: object
+  dto.TranslatedByAuthorListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.TranslatedByAuthorResponse'
+        type: array
+      status:
+        type: string
+      total:
+        type: integer
+    type: object
   dto.TranslatedByAuthorResponse:
     properties:
       id:
@@ -202,6 +227,17 @@ definitions:
     - language_name
     - translator_name
     - work_title
+    type: object
+  dto.TranslatedIntoLanguageListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.TranslatedIntoLanguageResponse'
+        type: array
+      status:
+        type: string
+      total:
+        type: integer
     type: object
   dto.TranslatedIntoLanguageResponse:
     properties:
@@ -238,6 +274,17 @@ definitions:
     - category_id
     - title
     type: object
+  dto.WorkListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.WorkResponse'
+        type: array
+      status:
+        type: string
+      total:
+        type: integer
+    type: object
   dto.WorkResponse:
     properties:
       audience_type:
@@ -267,7 +314,7 @@ definitions:
       status:
         type: string
     type: object
-host: localhost:8080
+host: localhost:8081
 info:
   contact: {}
   description: API for Hemra Şirow literary and biography website
@@ -359,9 +406,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.BookResponse'
-            type: array
+            $ref: '#/definitions/dto.BookListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -807,6 +852,11 @@ paths:
         name: title
         required: true
         type: string
+      - description: Film type (film or animation)
+        in: formData
+        name: film_type
+        required: true
+        type: string
       - description: Release year
         in: formData
         name: release_year
@@ -899,6 +949,10 @@ paths:
       - description: Title
         in: formData
         name: title
+        type: string
+      - description: Film type (film or animation)
+        in: formData
+        name: film_type
         type: string
       - description: Release year
         in: formData
@@ -1335,9 +1389,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.TranslatedByAuthorResponse'
-            type: array
+            $ref: '#/definitions/dto.TranslatedByAuthorListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1422,9 +1474,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.TranslatedIntoLanguageResponse'
-            type: array
+            $ref: '#/definitions/dto.TranslatedIntoLanguageListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1534,8 +1584,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/dto.WorkListResponse'
         "500":
           description: Internal Server Error
           schema:

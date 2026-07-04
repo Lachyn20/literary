@@ -2,23 +2,26 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	_ "github.com/hemra-siirow/literary/docs"
 	"github.com/hemra-siirow/literary/internal/di"
 	"github.com/hemra-siirow/literary/internal/infrastructure/config"
-	_ "github.com/hemra-siirow/literary/docs"
 )
 
 // @title Literary Backend API
 // @version 1.0
 // @description API for Hemra Şirow literary and biography website
-// @host localhost:8080
+// @host localhost:8081
 // @basePath /
 // @schemes http https
 
@@ -36,14 +39,20 @@ func main() {
 		httpSwagger.URL("/swagger/doc.json"),
 	))
 
+	listener, actualAddr, err := listenWithFallback(cfg.ServerPort)
+	if err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+	defer listener.Close()
+
 	srv := &http.Server{
-		Addr:    ":" + cfg.ServerPort,
+		Addr:    actualAddr,
 		Handler: mux,
 	}
 
 	go func() {
-		log.Printf("listening on %s", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("listening on %s", actualAddr)
+		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server error: %v", err)
 		}
 	}()
@@ -60,4 +69,35 @@ func main() {
 	if err := container.Shutdown(ctx); err != nil {
 		log.Printf("container shutdown err: %v", err)
 	}
+}
+
+func listenWithFallback(preferredPort string) (net.Listener, string, error) {
+	if preferredPort == "" {
+		preferredPort = "8080"
+	}
+
+	listener, err := net.Listen("tcp", ":"+preferredPort)
+	if err == nil {
+		return listener, ":" + preferredPort, nil
+	}
+
+	if !isAddressInUseError(err) {
+		return nil, "", err
+	}
+
+	fallbackListener, fallbackErr := net.Listen("tcp", ":0")
+	if fallbackErr != nil {
+		return nil, "", fallbackErr
+	}
+
+	addr := fallbackListener.Addr().String()
+	if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil && host == "" {
+		addr = ":" + port
+	}
+	return fallbackListener, addr, nil
+}
+
+func isAddressInUseError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "address already in use") || strings.Contains(msg, "only one usage of each socket address")
 }

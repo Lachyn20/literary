@@ -16,16 +16,12 @@ import (
 )
 
 type BroadcastHandler struct {
-	createUC *broadcast.CreateBroadcastUseCase
-	getUC    *broadcast.GetBroadcastUseCase
-	listUC   *broadcast.ListBroadcastsUseCase
-	updateUC *broadcast.UpdateBroadcastUseCase
-	deleteUC *broadcast.DeleteBroadcastUseCase
-	store    repository.FileStorage
+	svc   *broadcast.BroadcastService
+	store repository.FileStorage
 }
 
-func NewBroadcastHandler(c *broadcast.CreateBroadcastUseCase, g *broadcast.GetBroadcastUseCase, l *broadcast.ListBroadcastsUseCase, u *broadcast.UpdateBroadcastUseCase, d *broadcast.DeleteBroadcastUseCase, s repository.FileStorage) *BroadcastHandler {
-	return &BroadcastHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d, store: s}
+func NewBroadcastHandler(svc *broadcast.BroadcastService, store repository.FileStorage) *BroadcastHandler {
+	return &BroadcastHandler{svc: svc, store: store}
 }
 
 func (h *BroadcastHandler) RegisterRoutes(r chi.Router) {
@@ -42,7 +38,7 @@ func (h *BroadcastHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/broadcasts [get]
 func (h *BroadcastHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listUC.Execute(r.Context())
+	items, err := h.svc.List(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, broadcastResponses(items))
 }
@@ -58,7 +54,7 @@ func (h *BroadcastHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	b, err := h.getUC.Execute(r.Context(), id)
+	b, err := h.svc.GetByID(r.Context(), id)
 	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 	WriteJSON(w, http.StatusOK, broadcastResponse(b))
 }
@@ -138,7 +134,7 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 			b.FileType = entity.FileType(fileType)
 		}
 			
-            if err := h.createUC.Execute(r.Context(), &b); err != nil {
+            if err := h.svc.Create(r.Context(), &b); err != nil {
 			 if savedFile {
 			    	_ = h.store.Remove(savedPath)
 			    }
@@ -155,7 +151,7 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	b := entity.Broadcast{ID: uuid.New(), Title: req.Title, BroadcastType: entity.BroadcastType(req.BroadcastType), ChannelName: req.ChannelName, CreatedAt: time.Now()}
 	if req.BroadcastDate != nil { b.BroadcastDate = *req.BroadcastDate }
-	if err := h.createUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Create(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusCreated, broadcastResponse(&b))
 }
 
@@ -179,7 +175,7 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
 
-	old , err := h.getUC.Execute(r.Context(), id)
+	old , err := h.svc.GetByID(r.Context(), id)
 	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 	b := *old
 
@@ -234,7 +230,7 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 			b.FileType = entity.FileType(typ)
 		}
 
-        if err := h.updateUC.Execute(r.Context(), &b); err != nil {
+        if err := h.svc.Update(r.Context(), &b); err != nil {
 			if savedFile {
 				_ = h.store.Remove(newFilePath) // täze ýazylan faýly yzyna poz
 			}
@@ -268,7 +264,7 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 		b.BroadcastDate = *req.BroadcastDate
 	}
 
-	if err := h.updateUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Update(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, broadcastResponse(&b))
 }
 
@@ -283,6 +279,6 @@ func (h *BroadcastHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Delete(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

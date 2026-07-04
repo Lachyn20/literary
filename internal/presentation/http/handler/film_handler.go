@@ -17,16 +17,12 @@ import (
 )
 
 type FilmHandler struct {
-	createUC *film.CreateFilmUseCase
-	getUC    *film.GetFilmUseCase
-	listUC   *film.ListFilmsUseCase
-	updateUC *film.UpdateFilmUseCase
-	deleteUC *film.DeleteFilmUseCase
-	store    repository.FileStorage
+	svc   *film.FilmService
+	store repository.FileStorage
 }
 
-func NewFilmHandler(c *film.CreateFilmUseCase, g *film.GetFilmUseCase, l *film.ListFilmsUseCase, u *film.UpdateFilmUseCase, d *film.DeleteFilmUseCase, s repository.FileStorage) *FilmHandler {
-	return &FilmHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d, store: s}
+func NewFilmHandler(svc *film.FilmService, store repository.FileStorage) *FilmHandler {
+	return &FilmHandler{svc: svc, store: store}
 }
 
 func (h *FilmHandler) RegisterRoutes(r chi.Router) {
@@ -43,7 +39,7 @@ func (h *FilmHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/films [get]
 func (h *FilmHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listUC.Execute(r.Context())
+	items, err := h.svc.List(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, filmResponses(items))
 }
@@ -59,7 +55,7 @@ func (h *FilmHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	f, err := h.getUC.Execute(r.Context(), id)
+	f, err := h.svc.GetByID(r.Context(), id)
 	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 	WriteJSON(w, http.StatusOK, filmResponse(f))
 }
@@ -69,6 +65,7 @@ func (h *FilmHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Accept multipart/form-data
 // @Param title formData string true "Title"
+// @Param film_type formData string true "Film type (film or animation)"
 // @Param release_year formData int false "Release year"
 // @Param director formData string false "Director"
 // @Param based_on_scenario formData bool false "Based on scenario"
@@ -82,19 +79,32 @@ func (h *FilmHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(128 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
 		var f entity.Film
 		f.Title = r.FormValue("title")
+		f.FilmType = entity.FilmType(r.FormValue("film_type"))
 		if v := r.FormValue("release_year"); v != "" { if i, err := strconv.Atoi(v); err == nil { f.ReleaseYear = &i } }
 		if v := r.FormValue("director"); v != "" { f.Director = &v }
 		if v := r.FormValue("based_on_scenario"); v != "" { if b, err := strconv.ParseBool(v); err == nil { f.BasedOnScenario = b } }
 		if f.ID == uuid.Nil { f.ID = uuid.New() }
 		f.CreatedAt = time.Now()
+		var savedPath string
+		var savedFile bool
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			path, err := h.store.Save(file, fh.Filename, "video")
+			lower := strings.ToLower(fh.Filename)
+			if !strings.HasSuffix(lower, ".mp4") && !strings.HasSuffix(lower, ".mov") && !strings.HasSuffix(lower, ".mkv") && !strings.HasSuffix(lower, ".avi") {
+				WriteError(w, http.StatusBadRequest, "unsupported video file type")
+				return
+			}
+			savedPath, err = h.store.Save(file, fh.Filename, "video")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			f.VideoPath = &path
+			savedFile = true
+			f.VideoPath = &savedPath
 		}
-		if err := h.createUC.Execute(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Create(r.Context(), &f); err != nil {
+			if savedFile { _ = h.store.Remove(savedPath) }
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		WriteJSON(w, http.StatusCreated, filmResponse(&f))
 		return
 	}
@@ -103,7 +113,7 @@ func (h *FilmHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	f := entity.Film{ID: uuid.New(), Title: req.Title, FilmType: entity.FilmType(req.FilmType), BasedOnScenario: req.BasedOnScenario, Director: req.Director, ReleaseYear: req.ReleaseYear, CreatedAt: time.Now()}
-	if err := h.createUC.Execute(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Create(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusCreated, filmResponse(&f))
 }
 
@@ -113,6 +123,7 @@ func (h *FilmHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Accept multipart/form-data
 // @Param id path string true "Film ID"
 // @Param title formData string false "Title"
+// @Param film_type formData string false "Film type (film or animation)"
 // @Param release_year formData int false "Release year"
 // @Param director formData string false "Director"
 // @Param based_on_scenario formData bool false "Based on scenario"
@@ -127,20 +138,44 @@ func (h *FilmHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
 		if err := r.ParseMultipartForm(128 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
+		// Fetch existing film to preserve film_type if not provided
+		existing, err := h.svc.GetByID(r.Context(), id)
+		if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 		var f entity.Film
 		f.ID = id
 		f.Title = r.FormValue("title")
+		if f.Title == "" { f.Title = existing.Title }
+		f.FilmType = existing.FilmType
+		if v := r.FormValue("film_type"); v != "" { f.FilmType = entity.FilmType(v) }
 		if v := r.FormValue("release_year"); v != "" { if i, err := strconv.Atoi(v); err == nil { f.ReleaseYear = &i } }
 		if v := r.FormValue("director"); v != "" { f.Director = &v }
 		if v := r.FormValue("based_on_scenario"); v != "" { if b, err := strconv.ParseBool(v); err == nil { f.BasedOnScenario = b } }
+		f.VideoPath = existing.VideoPath
+		var savedPath string
+		var savedFile bool
+		var oldPath string
+		if existing.VideoPath != nil { oldPath = *existing.VideoPath }
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			path, err := h.store.Save(file, fh.Filename, "video")
+			lower := strings.ToLower(fh.Filename)
+			if !strings.HasSuffix(lower, ".mp4") && !strings.HasSuffix(lower, ".mov") && !strings.HasSuffix(lower, ".mkv") && !strings.HasSuffix(lower, ".avi") {
+				WriteError(w, http.StatusBadRequest, "unsupported video file type")
+				return
+			}
+			savedPath, err = h.store.Save(file, fh.Filename, "video")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			f.VideoPath = &path
+			savedFile = true
+			f.VideoPath = &savedPath
 		}
-		if err := h.updateUC.Execute(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Update(r.Context(), &f); err != nil {
+			if savedFile { _ = h.store.Remove(savedPath) }
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if savedFile && oldPath != "" && oldPath != savedPath {
+			_ = h.store.Remove(oldPath)
+		}
 		WriteJSON(w, http.StatusOK, filmResponse(&f))
 		return
 	}
@@ -149,7 +184,7 @@ func (h *FilmHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	f := entity.Film{ID: id, Title: req.Title, FilmType: entity.FilmType(req.FilmType), BasedOnScenario: req.BasedOnScenario, Director: req.Director, ReleaseYear: req.ReleaseYear}
-	if err := h.updateUC.Execute(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Update(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, filmResponse(&f))
 }
 
@@ -164,6 +199,9 @@ func (h *FilmHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	existing, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	if err := h.svc.Delete(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if existing.VideoPath != nil { _ = h.store.Remove(*existing.VideoPath) }
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

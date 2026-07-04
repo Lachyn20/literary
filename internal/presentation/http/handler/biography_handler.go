@@ -16,14 +16,12 @@ import (
 )
 
 type BiographyHandler struct {
-	getUC    *biography.GetBiographyUseCase
-	createUC *biography.CreateBiographyUseCase
-	updateUC *biography.UpdateBiographyUseCase
-	store    repository.FileStorage
+	svc   *biography.BiographyService
+	store repository.FileStorage
 }
 
-func NewBiographyHandler(g *biography.GetBiographyUseCase, c *biography.CreateBiographyUseCase, u *biography.UpdateBiographyUseCase, s repository.FileStorage) *BiographyHandler {
-	return &BiographyHandler{getUC: g, createUC: c, updateUC: u, store: s}
+func NewBiographyHandler(svc *biography.BiographyService, store repository.FileStorage) *BiographyHandler {
+	return &BiographyHandler{svc: svc, store: store}
 }
 
 func (h *BiographyHandler) RegisterRoutes(r chi.Router) {
@@ -38,7 +36,7 @@ func (h *BiographyHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/biography [get]
 func (h *BiographyHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
-	b, err := h.getUC.Execute(r.Context())
+	b, err := h.svc.GetLatest(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, biographyResponse(b))
 }
@@ -94,7 +92,7 @@ func (h *BiographyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// UseCase çagyrmak
-		if err := h.createUC.Execute(r.Context(), b); err != nil {
+		if err := h.svc.Create(r.Context(), b); err != nil {
 			if savedPhoto {
 				_ = h.store.Remove(photoPath) // Ýalňyşlyk boldy, ýüklenen suraty öçürýäris
 			}
@@ -123,7 +121,7 @@ func (h *BiographyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := h.createUC.Execute(r.Context(), b); err != nil {
+	if err := h.svc.Create(r.Context(), b); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -143,9 +141,9 @@ func (h *BiographyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req dto.BiographyUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	b, err := h.getUC.Execute(r.Context())
+	b, err := h.svc.GetLatest(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	b.Content = req.Content
-	if err := h.updateUC.Execute(r.Context(), b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Update(r.Context(), b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, biographyResponse(b))
 }

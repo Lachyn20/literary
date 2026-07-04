@@ -208,10 +208,10 @@ func translatedIntoLanguageResponses(items []*entity.TranslatedIntoLanguage) []d
 	return resp
 }
 
-func biographyResponses(items []*entity.Biography) []dto.BiographyResponse {
-	resp := make([]dto.BiographyResponse, 0, len(items))
-	for _, b := range items {
-		resp = append(resp, biographyResponse(b))
-	}
-	return resp
-}
+// func biographyResponses(items []*entity.Biography) []dto.BiographyResponse {
+// 	resp := make([]dto.BiographyResponse, 0, len(items))
+// 	for _, b := range items {
+// 		resp = append(resp, biographyResponse(b))
+// 	}
+// 	return resp
+// }

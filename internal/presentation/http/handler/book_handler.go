@@ -17,16 +17,12 @@ import (
 )
 
 type BookHandler struct {
-	createUC *book.CreateBookUseCase
-	getUC    *book.GetBookUseCase
-	listUC   *book.ListBooksUseCase
-	updateUC *book.UpdateBookUseCase
-	deleteUC *book.DeleteBookUseCase
-	store    repository.FileStorage
+	svc   *book.BookService
+	store repository.FileStorage
 }
 
-func NewBookHandler(c *book.CreateBookUseCase, g *book.GetBookUseCase, l *book.ListBooksUseCase, u *book.UpdateBookUseCase, d *book.DeleteBookUseCase, s repository.FileStorage) *BookHandler {
-	return &BookHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d, store: s}
+func NewBookHandler(svc *book.BookService, store repository.FileStorage) *BookHandler {
+	return &BookHandler{svc: svc, store: store}
 }
 
 func (h *BookHandler) RegisterRoutes(r chi.Router) {
@@ -39,16 +35,19 @@ func (h *BookHandler) RegisterRoutes(r chi.Router) {
 
 // @Summary List books
 // @Description List all books
-// @Success 200 {array} dto.BookResponse
+// @Success 200 {object} dto.BookListResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/books [get]
 func (h *BookHandler) List(w http.ResponseWriter, r *http.Request) {
-	books, err := h.listUC.Execute(r.Context())
+	books, total, err := h.svc.List(r.Context())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteJSON(w, http.StatusOK, bookResponses(books))
+	if books == nil {
+		books = []*entity.Book{}
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "data": bookResponses(books), "total": total})
 }
 
 // @Summary Get book
@@ -61,9 +60,15 @@ func (h *BookHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *BookHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	b, err := h.getUC.Execute(r.Context(), id)
-	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	b, err := h.svc.GetByID(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, bookResponse(b))
 }
 
@@ -84,13 +89,28 @@ func (h *BookHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// support multipart upload or JSON
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
-		if err := r.ParseMultipartForm(32 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid multipart")
+			return
+		}
 		var b entity.Book
 		b.Title = r.FormValue("title")
-		if v := r.FormValue("bibliographic_info"); v != "" { b.BibliographicInfo = &v }
-		if v := r.FormValue("page_count"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PageCount = &i } }
-		if v := r.FormValue("published_year"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PublishedYear = &i } }
-		if b.ID == uuid.Nil { b.ID = uuid.New() }
+		if v := r.FormValue("bibliographic_info"); v != "" {
+			b.BibliographicInfo = &v
+		}
+		if v := r.FormValue("page_count"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				b.PageCount = &i
+			}
+		}
+		if v := r.FormValue("published_year"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				b.PublishedYear = &i
+			}
+		}
+		if b.ID == uuid.Nil {
+			b.ID = uuid.New()
+		}
 		b.CreatedAt = time.Now()
 
 		var coverPath, pdfPath string
@@ -101,7 +121,10 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			defer cover.Close()
 			coverPath, err := h.store.Save(cover, ch.Filename, "image")
-			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			savedCover = true
 			b.CoverImagePath = &coverPath
 		}
@@ -110,38 +133,44 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			defer pdf.Close()
 			pdfPath, err := h.store.Save(pdf, ph.Filename, "book")
-			if err != nil { 
+			if err != nil {
 				if savedCover {
 					_ = h.store.Remove(coverPath)
 				}
-				WriteError(w, http.StatusBadRequest, err.Error()); 
-				return 
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
 			}
 			savedPDF = true
 			b.PDFPath = &pdfPath
 		}
 
-		if err := h.createUC.Execute(r.Context(), &b); err != nil { 
+		if err := h.svc.Create(r.Context(), &b); err != nil {
 			if savedCover {
 				_ = h.store.Remove(coverPath)
 			}
 			if savedPDF {
 				_ = h.store.Remove(pdfPath)
 			}
-			WriteError(w, http.StatusInternalServerError, err.Error()); 
-			return 
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		WriteJSON(w, http.StatusCreated, bookResponse(&b))
 		return
 	}
 
 	var req dto.BookCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := validation.Struct(req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	b := entity.Book{ID: uuid.New(), Title: req.Title, BibliographicInfo: req.BibliographicInfo, PageCount: req.PageCount, PublishedYear: req.PublishedYear, CreatedAt: time.Now()}
-	if err := h.createUC.Execute(r.Context(), &b); err != nil { 
-		WriteError(w, http.StatusInternalServerError, err.Error()); 
-		return 
+	if err := h.svc.Create(r.Context(), &b); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	WriteJSON(w, http.StatusCreated, bookResponse(&b))
 }
@@ -164,16 +193,32 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
 	// support multipart or json
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
-		if err := r.ParseMultipartForm(32 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid multipart")
+			return
+		}
 		var b entity.Book
 		b.ID = id
 		b.Title = r.FormValue("title")
-		if v := r.FormValue("bibliographic_info"); v != "" { b.BibliographicInfo = &v }
-		if v := r.FormValue("page_count"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PageCount = &i } }
-		if v := r.FormValue("published_year"); v != "" { if i, err := strconv.Atoi(v); err == nil { b.PublishedYear = &i } }
+		if v := r.FormValue("bibliographic_info"); v != "" {
+			b.BibliographicInfo = &v
+		}
+		if v := r.FormValue("page_count"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				b.PageCount = &i
+			}
+		}
+		if v := r.FormValue("published_year"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				b.PublishedYear = &i
+			}
+		}
 
 		var coverPath, pdfPath string
 		var savedCover, savedPDF bool
@@ -182,7 +227,10 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			defer cover.Close()
 			coverpath, err := h.store.Save(cover, ch.Filename, "image")
-			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+			if err != nil {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			savedCover = true
 			b.CoverImagePath = &coverpath
 		}
@@ -190,23 +238,25 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			defer pdf.Close()
 			path, err := h.store.Save(pdf, ph.Filename, "book")
-			if err != nil { 
+			if err != nil {
 				if savedCover {
 					_ = h.store.Remove(coverPath)
 				}
-				WriteError(w, http.StatusBadRequest, err.Error()); return }
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			savedPDF = true
 			b.PDFPath = &path
 		}
 
-		if err := h.updateUC.Execute(r.Context(), &b); err != nil { 
+		if err := h.svc.Update(r.Context(), &b); err != nil {
 			if savedCover {
 				_ = h.store.Remove(coverPath)
 			}
 			if savedPDF {
 				_ = h.store.Remove(pdfPath)
 			}
-			WriteError(w, http.StatusInternalServerError, err.Error());
+			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		WriteJSON(w, http.StatusOK, bookResponse(&b))
@@ -214,10 +264,19 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req dto.BookCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := validation.Struct(req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	b := entity.Book{ID: id, Title: req.Title, BibliographicInfo: req.BibliographicInfo, PageCount: req.PageCount, PublishedYear: req.PublishedYear}
-	if err := h.updateUC.Execute(r.Context(), &b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Update(r.Context(), &b); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, bookResponse(&b))
 }
 
@@ -231,7 +290,13 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *BookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

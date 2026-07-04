@@ -17,16 +17,12 @@ import (
 )
 
 type WorkHandler struct {
-	createUC *work.CreateWorkUseCase
-	getUC    *work.GetWorkUseCase
-	listUC   *work.ListWorksUseCase
-	updateUC *work.UpdateWorkUseCase
-	deleteUC *work.DeleteWorkUseCase
-	store    repository.FileStorage
+	svc   *work.WorkService
+	store repository.FileStorage
 }
 
-func NewWorkHandler(create *work.CreateWorkUseCase, get *work.GetWorkUseCase, list *work.ListWorksUseCase, update *work.UpdateWorkUseCase, del *work.DeleteWorkUseCase, store repository.FileStorage) *WorkHandler {
-	return &WorkHandler{createUC: create, getUC: get, listUC: list, updateUC: update, deleteUC: del, store: store}
+func NewWorkHandler(svc *work.WorkService, store repository.FileStorage) *WorkHandler {
+	return &WorkHandler{svc: svc, store: store}
 }
 
 func (h *WorkHandler) RegisterRoutes(r chi.Router) {
@@ -45,7 +41,7 @@ func (h *WorkHandler) RegisterRoutes(r chi.Router) {
 // @Param year query int false "publish year"
 // @Param page query int false "page"
 // @Param limit query int false "limit"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} dto.WorkListResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/works [get]
 func (h *WorkHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -84,12 +80,15 @@ func (h *WorkHandler) List(w http.ResponseWriter, r *http.Request) {
 	filter.Page = page
 	filter.Limit = limit
 
-	works, total, err := h.listUC.Execute(r.Context(), filter)
+	works, total, err := h.svc.List(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	resp := map[string]interface{}{"data": workResponses(works), "total": total, "page": page, "limit": limit}
+	if works == nil {
+		works = []*entity.Work{}
+	}
+	resp := map[string]interface{}{"status": "ok", "data": workResponses(works), "total": total}
 	WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -107,7 +106,7 @@ func (h *WorkHandler) Get(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	wk, err := h.getUC.Execute(r.Context(), id)
+	wk, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
 		WriteError(w, http.StatusNotFound, err.Error())
 		return
@@ -207,7 +206,7 @@ func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
 			work.FilePath = &savedPath
 		}
 
-		if err := h.createUC.Execute(r.Context(), work); err != nil {
+		if err := h.svc.Create(r.Context(), work); err != nil {
 			if savedFile {
 				_ = h.store.Remove(savedPath)
 			}
@@ -241,7 +240,7 @@ func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if req.Description != "" {
 		work.Description = &req.Description
 	}
-	if err := h.createUC.Execute(r.Context(), work); err != nil {
+	if err := h.svc.Create(r.Context(), work); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -271,7 +270,7 @@ func (h *WorkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldWork, err := h.getUC.Execute(r.Context(), id)
+	oldWork, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
 		WriteError(w, http.StatusNotFound, err.Error())
 		return
@@ -336,7 +335,7 @@ func (h *WorkHandler) Update(w http.ResponseWriter, r *http.Request) {
 			oldWork.FilePath = &savedPath
 		}
 
-		if err := h.updateUC.Execute(r.Context(), oldWork); err != nil {
+		if err := h.svc.Update(r.Context(), oldWork); err != nil {
 			if savedFile {
 				_ = h.store.Remove(savedPath)
 			}
@@ -383,7 +382,7 @@ func (h *WorkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	oldWork.UpdatedAt = time.Now()
 
-	if err := h.updateUC.Execute(r.Context(), oldWork); err != nil {
+	if err := h.svc.Update(r.Context(), oldWork); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -404,7 +403,7 @@ func (h *WorkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), id); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

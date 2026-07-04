@@ -16,16 +16,12 @@ import (
 )
 
 type PhotoArchiveHandler struct {
-	createUC *photoarchive.CreatePhotoArchiveUseCase
-	getUC    *photoarchive.GetPhotoArchiveUseCase
-	listUC   *photoarchive.ListPhotoArchiveUseCase
-	updateUC *photoarchive.UpdatePhotoArchiveUseCase
-	deleteUC *photoarchive.DeletePhotoArchiveUseCase
-	store    repository.FileStorage
+	svc   *photoarchive.PhotoArchiveService
+	store repository.FileStorage
 }
 
-func NewPhotoArchiveHandler(c *photoarchive.CreatePhotoArchiveUseCase, g *photoarchive.GetPhotoArchiveUseCase, l *photoarchive.ListPhotoArchiveUseCase, u *photoarchive.UpdatePhotoArchiveUseCase, d *photoarchive.DeletePhotoArchiveUseCase, s repository.FileStorage) *PhotoArchiveHandler {
-	return &PhotoArchiveHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d, store: s}
+func NewPhotoArchiveHandler(svc *photoarchive.PhotoArchiveService, store repository.FileStorage) *PhotoArchiveHandler {
+	return &PhotoArchiveHandler{svc: svc, store: store}
 }
 
 func (h *PhotoArchiveHandler) RegisterRoutes(r chi.Router) {
@@ -42,7 +38,7 @@ func (h *PhotoArchiveHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/photo-archive [get]
 func (h *PhotoArchiveHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listUC.Execute(r.Context())
+	items, err := h.svc.List(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, photoArchiveResponses(items))
 }
@@ -58,7 +54,7 @@ func (h *PhotoArchiveHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	p, err := h.getUC.Execute(r.Context(), id)
+	p, err := h.svc.GetByID(r.Context(), id)
 	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 	WriteJSON(w, http.StatusOK, photoArchiveResponse(p))
 }
@@ -81,17 +77,36 @@ func (h *PhotoArchiveHandler) Create(w http.ResponseWriter, r *http.Request) {
 		var p entity.PhotoArchive
 		p.Title = r.FormValue("title")
 		if v := r.FormValue("description"); v != "" { p.Description = &v }
-		if v := r.FormValue("category"); v != "" { /* ignore for now - parsing enum omitted */ _ = v }
+		if v := r.FormValue("category"); v != "" {
+			switch entity.PhotoCategory(v) {
+			case entity.PhotoCategoryArchive, entity.PhotoCategoryPersonal:
+				p.Category = entity.PhotoCategory(v)
+			default:
+				WriteError(w, http.StatusBadRequest, "category must be archive or personal")
+				return
+			}
+		} else {
+			p.Category = entity.PhotoCategoryArchive
+		}
 		if p.ID == uuid.Nil { p.ID = uuid.New() }
 		p.CreatedAt = time.Now()
 		img, ih, err := r.FormFile("image")
 		if err == nil {
 			defer img.Close()
+			lower := strings.ToLower(ih.Filename)
+			if !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") && !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".gif") && !strings.HasSuffix(lower, ".webp") {
+				WriteError(w, http.StatusBadRequest, "unsupported image file type")
+				return
+			}
 			path, err := h.store.Save(img, ih.Filename, "image")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			p.ImagePath = path
 		}
-		if err := h.createUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Create(r.Context(), &p); err != nil {
+			if p.ImagePath != "" { _ = h.store.Remove(p.ImagePath) }
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		WriteJSON(w, http.StatusCreated, photoArchiveResponse(&p))
 		return
 	}
@@ -101,7 +116,18 @@ func (h *PhotoArchiveHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	p := entity.PhotoArchive{ID: uuid.New(), Title: req.Title, ImagePath: "", Description: req.Description, CreatedAt: time.Now()}
 	if req.TakenDate != nil { p.TakenDate = req.TakenDate }
-	if err := h.createUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if req.Category != nil && *req.Category != "" {
+		switch entity.PhotoCategory(*req.Category) {
+		case entity.PhotoCategoryArchive, entity.PhotoCategoryPersonal:
+			p.Category = entity.PhotoCategory(*req.Category)
+		default:
+			WriteError(w, http.StatusBadRequest, "category must be archive or personal")
+			return
+		}
+	} else {
+		p.Category = entity.PhotoCategoryArchive
+	}
+	if err := h.svc.Create(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusCreated, photoArchiveResponse(&p))
 }
 
@@ -123,18 +149,44 @@ func (h *PhotoArchiveHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
 		if err := r.ParseMultipartForm(32 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
+		old, err := h.svc.GetByID(r.Context(), id)
+		if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 		var p entity.PhotoArchive
 		p.ID = id
 		p.Title = r.FormValue("title")
 		if v := r.FormValue("description"); v != "" { p.Description = &v }
+		if v := r.FormValue("category"); v != "" {
+			switch entity.PhotoCategory(v) {
+			case entity.PhotoCategoryArchive, entity.PhotoCategoryPersonal:
+				p.Category = entity.PhotoCategory(v)
+			default:
+				WriteError(w, http.StatusBadRequest, "category must be archive or personal")
+				return
+			}
+		} else {
+			p.Category = entity.PhotoCategoryArchive
+		}
+		p.ImagePath = old.ImagePath
+		var oldPath string
+		if old.ImagePath != "" { oldPath = old.ImagePath }
 		img, ih, err := r.FormFile("image")
 		if err == nil {
 			defer img.Close()
+			lower := strings.ToLower(ih.Filename)
+			if !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") && !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".gif") && !strings.HasSuffix(lower, ".webp") {
+				WriteError(w, http.StatusBadRequest, "unsupported image file type")
+				return
+			}
 			path, err := h.store.Save(img, ih.Filename, "image")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			p.ImagePath = path
 		}
-		if err := h.updateUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Update(r.Context(), &p); err != nil {
+			if p.ImagePath != "" && p.ImagePath != oldPath { _ = h.store.Remove(p.ImagePath) }
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if p.ImagePath != "" && oldPath != "" && p.ImagePath != oldPath { _ = h.store.Remove(oldPath) }
 		WriteJSON(w, http.StatusOK, photoArchiveResponse(&p))
 		return
 	}
@@ -144,7 +196,18 @@ func (h *PhotoArchiveHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	p := entity.PhotoArchive{ID: id, Title: req.Title, ImagePath: "", Description: req.Description}
 	if req.TakenDate != nil { p.TakenDate = req.TakenDate }
-	if err := h.updateUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if req.Category != nil && *req.Category != "" {
+		switch entity.PhotoCategory(*req.Category) {
+		case entity.PhotoCategoryArchive, entity.PhotoCategoryPersonal:
+			p.Category = entity.PhotoCategory(*req.Category)
+		default:
+			WriteError(w, http.StatusBadRequest, "category must be archive or personal")
+			return
+		}
+	} else {
+		p.Category = entity.PhotoCategoryArchive
+	}
+	if err := h.svc.Update(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, photoArchiveResponse(&p))
 }
 
@@ -159,6 +222,9 @@ func (h *PhotoArchiveHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	if err := h.svc.Delete(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if old.ImagePath != "" { _ = h.store.Remove(old.ImagePath) }
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

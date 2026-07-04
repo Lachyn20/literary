@@ -10,7 +10,7 @@
         "contact": {},
         "version": "1.0"
     },
-    "host": "localhost:8080",
+    "host": "localhost:8081",
     "basePath": "/",
     "paths": {
         "/api/biography": {
@@ -140,10 +140,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.BookResponse"
-                            }
+                            "$ref": "#/definitions/dto.BookListResponse"
                         }
                     },
                     "500": {
@@ -807,6 +804,13 @@
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Film type (film or animation)",
+                        "name": "film_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
                         "type": "integer",
                         "description": "Release year",
                         "name": "release_year",
@@ -906,6 +910,12 @@
                         "type": "string",
                         "description": "Title",
                         "name": "title",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Film type (film or animation)",
+                        "name": "film_type",
                         "in": "formData"
                     },
                     {
@@ -1591,10 +1601,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.TranslatedByAuthorResponse"
-                            }
+                            "$ref": "#/definitions/dto.TranslatedByAuthorListResponse"
                         }
                     },
                     "500": {
@@ -1723,10 +1730,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.TranslatedIntoLanguageResponse"
-                            }
+                            "$ref": "#/definitions/dto.TranslatedIntoLanguageListResponse"
                         }
                     },
                     "500": {
@@ -1893,8 +1897,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/dto.WorkListResponse"
                         }
                     },
                     "500": {
@@ -2169,6 +2172,23 @@
                 }
             }
         },
+        "dto.BookListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.BookResponse": {
             "type": "object",
             "properties": {
@@ -2332,7 +2352,8 @@
         "dto.TheatreCreateRequest": {
             "type": "object",
             "required": [
-                "play_title"
+                "play_title",
+                "theatre_name"
             ],
             "properties": {
                 "notes": {
@@ -2347,7 +2368,9 @@
                     "type": "string"
                 },
                 "theatre_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -2396,6 +2419,23 @@
                 }
             }
         },
+        "dto.TranslatedByAuthorListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TranslatedByAuthorResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.TranslatedByAuthorResponse": {
             "type": "object",
             "properties": {
@@ -2435,6 +2475,23 @@
                 },
                 "work_title": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.TranslatedIntoLanguageListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TranslatedIntoLanguageResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -2486,6 +2543,23 @@
                     "type": "string",
                     "maxLength": 255,
                     "minLength": 1
+                }
+            }
+        },
+        "dto.WorkListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.WorkResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

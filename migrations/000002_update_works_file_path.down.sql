@@ -10,6 +10,6 @@ end
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_works_search_vector ON works;
-CREATE TRIGGER trg_works_search_vector
+CREATE TRIGGER trg_works_search_vector  
 BEFORE INSERT OR UPDATE ON works
 FOR EACH ROW EXECUTE FUNCTION works_search_vector_trigger();

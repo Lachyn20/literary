@@ -21,3 +21,9 @@ type WorkResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+type WorkListResponse struct {
+	Status string         `json:"status"`
+	Data   []WorkResponse `json:"data"`
+	Total  int            `json:"total"`
+}

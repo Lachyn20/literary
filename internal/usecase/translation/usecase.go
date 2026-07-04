@@ -47,7 +47,7 @@ func (u *ListTranslatedByAuthorsUseCase) Execute(ctx context.Context) ([]*entity
 	return u.repo.List(ctx)
 }
 
-type DeleteTranslatedByAuthorUseCase struct {
+	type DeleteTranslatedByAuthorUseCase struct {
 	repo repository.TranslatedByAuthorRepository
 }
 

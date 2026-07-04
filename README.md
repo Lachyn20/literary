@@ -49,8 +49,8 @@ docker-compose up --build
 # First time: Apply database migrations
 docker-compose exec api /app/server migrate
 
-# API is now available at http://localhost:8080
-# Swagger UI at http://localhost:8080/swagger/index.html
+# API is now available at http://localhost:8081
+# Swagger UI at http://localhost:8081/swagger/index.html
 ```
 
 ### Environment Variables
@@ -62,7 +62,7 @@ The docker-compose.yml automatically sets:
 - `DB_USER=postgres`
 - `DB_PASSWORD=postgres`
 - `DB_NAME=hemra_siirow`
-- `SERVER_PORT=8080`
+- `SERVER_PORT=8081`
 - `UPLOAD_BASE_PATH=/app/uploads`
 
 File uploads persist in the `uploads` Docker volume across container restarts.
@@ -99,7 +99,7 @@ File uploads persist in the `uploads` Docker volume across container restarts.
    go run ./cmd/api
    ```
 
-   Server listens on `http://localhost:8080`
+   Server listens on `http://localhost:8081`
 
 ## Configuration
 
@@ -114,7 +114,7 @@ DB_PASSWORD=postgres
 DB_NAME=hemra_siirow
 
 # Server
-SERVER_PORT=8080
+SERVER_PORT=8081
 JWT_SECRET=your-secret-key-here-min-32-chars
 
 # File Storage
@@ -155,7 +155,7 @@ psql "postgres://postgres:postgres@localhost:5432/hemra_siirow?sslmode=disable" 
 Once the server is running, access:
 
 ```
-http://localhost:8080/swagger/index.html
+http://localhost:8081/swagger/index.html
 ```
 
 ### Regenerate Swagger Docs
@@ -178,26 +178,26 @@ Docs are generated in `docs/` directory (docs.go, swagger.json, swagger.yaml).
 
 ```bash
 # List all works
-curl http://localhost:8080/api/works
+curl http://localhost:8081/api/works
 
 # Search works with pagination
-curl "http://localhost:8080/api/works?search=keyword&page=1&limit=10"
+curl "http://localhost:8081/api/works?search=keyword&page=1&limit=10"
 ```
 
 ### Books (with file uploads)
 
 ```bash
 # Create book
-curl -X POST http://localhost:8080/api/books \
+curl -X POST http://localhost:8081/api/books \
   -F "title=Book Title" \
   -F "cover=@cover.jpg" \
   -F "pdf=@book.pdf"
 
 # Get book by ID
-curl http://localhost:8080/api/books/{id}
+curl http://localhost:8081/api/books/{id}
 
 # List books
-curl http://localhost:8080/api/books
+curl http://localhost:8081/api/books
 ```
 
 ### Other Resources

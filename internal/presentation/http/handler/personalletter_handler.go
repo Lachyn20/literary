@@ -16,16 +16,12 @@ import (
 )
 
 type PersonalLetterHandler struct {
-	createUC *personalletter.CreatePersonalLetterUseCase
-	getUC    *personalletter.GetPersonalLetterUseCase
-	listUC   *personalletter.ListPersonalLettersUseCase
-	updateUC *personalletter.UpdatePersonalLetterUseCase
-	deleteUC *personalletter.DeletePersonalLetterUseCase
-	store    repository.FileStorage
+	svc   *personalletter.PersonalLetterService
+	store repository.FileStorage
 }
 
-func NewPersonalLetterHandler(c *personalletter.CreatePersonalLetterUseCase, g *personalletter.GetPersonalLetterUseCase, l *personalletter.ListPersonalLettersUseCase, u *personalletter.UpdatePersonalLetterUseCase, d *personalletter.DeletePersonalLetterUseCase, s repository.FileStorage) *PersonalLetterHandler {
-	return &PersonalLetterHandler{createUC: c, getUC: g, listUC: l, updateUC: u, deleteUC: d, store: s}
+func NewPersonalLetterHandler(svc *personalletter.PersonalLetterService, store repository.FileStorage) *PersonalLetterHandler {
+	return &PersonalLetterHandler{svc: svc, store: store}
 }
 
 func (h *PersonalLetterHandler) RegisterRoutes(r chi.Router) {
@@ -42,7 +38,7 @@ func (h *PersonalLetterHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/personal-letters [get]
 func (h *PersonalLetterHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listUC.Execute(r.Context())
+	items, err := h.svc.List(r.Context())
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, personalLetterResponses(items))
 }
@@ -58,7 +54,7 @@ func (h *PersonalLetterHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	p, err := h.getUC.Execute(r.Context(), id)
+	p, err := h.svc.GetByID(r.Context(), id)
 	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
 	WriteJSON(w, http.StatusOK, personalLetterResponse(p))
 }
@@ -91,7 +87,7 @@ func (h *PersonalLetterHandler) Create(w http.ResponseWriter, r *http.Request) {
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			p.ScanImagePath = &path
 		}
-		if err := h.createUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Create(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 		WriteJSON(w, http.StatusCreated, personalLetterResponse(&p))
 		return
 	}
@@ -101,7 +97,7 @@ func (h *PersonalLetterHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	p := entity.PersonalLetter{ID: uuid.New(), Title: req.Title, Content: req.Content, CreatedAt: time.Now()}
 	if req.LetterDate != nil { p.LetterDate = *req.LetterDate }
-	if err := h.createUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Create(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusCreated, personalLetterResponse(&p))
 }
 
@@ -136,7 +132,7 @@ func (h *PersonalLetterHandler) Update(w http.ResponseWriter, r *http.Request) {
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			p.ScanImagePath = &path
 		}
-		if err := h.updateUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+		if err := h.svc.Update(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 		WriteJSON(w, http.StatusOK, personalLetterResponse(&p))
 		return
 	}
@@ -146,7 +142,7 @@ func (h *PersonalLetterHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 	p := entity.PersonalLetter{ID: id, Title: req.Title, Content: req.Content}
 	if req.LetterDate != nil { p.LetterDate = *req.LetterDate }
-	if err := h.updateUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Update(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, personalLetterResponse(&p))
 }
 
@@ -161,6 +157,6 @@ func (h *PersonalLetterHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.Delete(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

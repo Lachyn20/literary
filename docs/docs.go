@@ -142,10 +142,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.BookResponse"
-                            }
+                            "$ref": "#/definitions/dto.BookListResponse"
                         }
                     },
                     "500": {
@@ -809,6 +806,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Film type (film or animation)",
+                        "name": "film_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
                         "type": "integer",
                         "description": "Release year",
                         "name": "release_year",
@@ -908,6 +912,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Title",
                         "name": "title",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Film type (film or animation)",
+                        "name": "film_type",
                         "in": "formData"
                     },
                     {
@@ -1593,10 +1603,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.TranslatedByAuthorResponse"
-                            }
+                            "$ref": "#/definitions/dto.TranslatedByAuthorListResponse"
                         }
                     },
                     "500": {
@@ -1725,10 +1732,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.TranslatedIntoLanguageResponse"
-                            }
+                            "$ref": "#/definitions/dto.TranslatedIntoLanguageListResponse"
                         }
                     },
                     "500": {
@@ -1895,8 +1899,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/dto.WorkListResponse"
                         }
                     },
                     "500": {
@@ -2171,6 +2174,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.BookListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.BookResponse": {
             "type": "object",
             "properties": {
@@ -2334,7 +2354,8 @@ const docTemplate = `{
         "dto.TheatreCreateRequest": {
             "type": "object",
             "required": [
-                "play_title"
+                "play_title",
+                "theatre_name"
             ],
             "properties": {
                 "notes": {
@@ -2349,7 +2370,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "theatre_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -2398,6 +2421,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.TranslatedByAuthorListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TranslatedByAuthorResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.TranslatedByAuthorResponse": {
             "type": "object",
             "properties": {
@@ -2437,6 +2477,23 @@ const docTemplate = `{
                 },
                 "work_title": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.TranslatedIntoLanguageListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TranslatedIntoLanguageResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -2491,6 +2548,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.WorkListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.WorkResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.WorkResponse": {
             "type": "object",
             "properties": {
@@ -2541,7 +2615,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
+	Host:             "localhost:8081",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Literary Backend API",

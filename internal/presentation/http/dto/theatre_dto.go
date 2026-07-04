@@ -3,10 +3,10 @@ package dto
 import "time"
 
 type TheatreCreateRequest struct {
-    PlayTitle   string    `json:"play_title" validate:"required,min=1,max=255"`
-    TheatreName string    `json:"theatre_name"`
-    PremiereDate *time.Time `json:"premiere_date"`
-    Notes       *string   `json:"notes"`
+	PlayTitle    string  `json:"play_title" validate:"required,min=1,max=255"`
+	TheatreName  string  `json:"theatre_name" validate:"required,min=1,max=255"`
+	PremiereDate *string `json:"premiere_date"`
+	Notes        *string `json:"notes"`
 }
 
 type TheatreResponse struct {

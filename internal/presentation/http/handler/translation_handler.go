@@ -13,19 +13,11 @@ import (
 )
 
 type TranslationHandler struct {
-	createByAuthorUC *translation.CreateTranslatedByAuthorUseCase
-	getByAuthorUC    *translation.GetTranslatedByAuthorUseCase
-	listByAuthorUC   *translation.ListTranslatedByAuthorsUseCase
-	deleteByAuthorUC *translation.DeleteTranslatedByAuthorUseCase
-
-	createIntoUC *translation.CreateTranslatedIntoLanguageUseCase
-	getIntoUC    *translation.GetTranslatedIntoLanguageUseCase
-	listIntoUC   *translation.ListTranslatedIntoLanguagesUseCase
-	deleteIntoUC *translation.DeleteTranslatedIntoLanguageUseCase
+	svc *translation.TranslationService
 }
 
-func NewTranslationHandler(cb *translation.CreateTranslatedByAuthorUseCase, gb *translation.GetTranslatedByAuthorUseCase, lb *translation.ListTranslatedByAuthorsUseCase, db *translation.DeleteTranslatedByAuthorUseCase, ci *translation.CreateTranslatedIntoLanguageUseCase, gi *translation.GetTranslatedIntoLanguageUseCase, li *translation.ListTranslatedIntoLanguagesUseCase, di *translation.DeleteTranslatedIntoLanguageUseCase) *TranslationHandler {
-	return &TranslationHandler{createByAuthorUC: cb, getByAuthorUC: gb, listByAuthorUC: lb, deleteByAuthorUC: db, createIntoUC: ci, getIntoUC: gi, listIntoUC: li, deleteIntoUC: di}
+func NewTranslationHandler(svc *translation.TranslationService) *TranslationHandler {
+	return &TranslationHandler{svc: svc}
 }
 
 func (h *TranslationHandler) RegisterRoutes(r chi.Router) {
@@ -42,13 +34,19 @@ func (h *TranslationHandler) RegisterRoutes(r chi.Router) {
 
 // @Summary List translations by author
 // @Description List all translations by author
-// @Success 200 {array} dto.TranslatedByAuthorResponse
+// @Success 200 {object} dto.TranslatedByAuthorListResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/translations/by-author [get]
 func (h *TranslationHandler) ListByAuthor(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listByAuthorUC.Execute(r.Context())
-	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, translatedByAuthorResponses(items))
+	items, total, err := h.svc.ListByAuthor(r.Context())
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if items == nil {
+		items = []*entity.TranslatedByAuthor{}
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "data": translatedByAuthorResponses(items), "total": total})
 }
 
 // @Summary Get translation by author
@@ -61,9 +59,15 @@ func (h *TranslationHandler) ListByAuthor(w http.ResponseWriter, r *http.Request
 func (h *TranslationHandler) GetByAuthor(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	i, err := h.getByAuthorUC.Execute(r.Context(), id)
-	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	i, err := h.svc.GetByAuthor(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, translatedByAuthorResponse(i))
 }
 
@@ -77,10 +81,19 @@ func (h *TranslationHandler) GetByAuthor(w http.ResponseWriter, r *http.Request)
 // @Router /api/translations/by-author [post]
 func (h *TranslationHandler) CreateByAuthor(w http.ResponseWriter, r *http.Request) {
 	var req dto.TranslatedByAuthorCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := validation.Struct(req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	p := entity.TranslatedByAuthor{ID: uuid.New(), OriginalAuthorName: req.OriginalAuthorName, OriginalLanguage: req.OriginalLanguage, WorkTitle: req.WorkTitle, Notes: req.Notes}
-	if err := h.createByAuthorUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.CreateByAuthor(r.Context(), &p); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusCreated, translatedByAuthorResponse(&p))
 }
 
@@ -94,20 +107,32 @@ func (h *TranslationHandler) CreateByAuthor(w http.ResponseWriter, r *http.Reque
 func (h *TranslationHandler) DeleteByAuthor(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteByAuthorUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.svc.DeleteByAuthor(r.Context(), id); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }
 
 // @Summary List translations into language
 // @Description List all translations into language
-// @Success 200 {array} dto.TranslatedIntoLanguageResponse
+// @Success 200 {object} dto.TranslatedIntoLanguageListResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/translations/into-language [get]
 func (h *TranslationHandler) ListInto(w http.ResponseWriter, r *http.Request) {
-	items, err := h.listIntoUC.Execute(r.Context())
-	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, translatedIntoLanguageResponses(items))
+	items, total, err := h.svc.ListIntoLanguage(r.Context())
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if items == nil {
+		items = []*entity.TranslatedIntoLanguage{}
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "data": translatedIntoLanguageResponses(items), "total": total})
 }
 
 // @Summary Get translation into language
@@ -120,9 +145,15 @@ func (h *TranslationHandler) ListInto(w http.ResponseWriter, r *http.Request) {
 func (h *TranslationHandler) GetInto(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	i, err := h.getIntoUC.Execute(r.Context(), id)
-	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	i, err := h.svc.GetIntoLanguage(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, translatedIntoLanguageResponse(i))
 }
 
@@ -136,10 +167,19 @@ func (h *TranslationHandler) GetInto(w http.ResponseWriter, r *http.Request) {
 // @Router /api/translations/into-language [post]
 func (h *TranslationHandler) CreateInto(w http.ResponseWriter, r *http.Request) {
 	var req dto.TranslatedIntoLanguageCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := validation.Struct(req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	p := entity.TranslatedIntoLanguage{ID: uuid.New(), LanguageName: req.LanguageName, TranslatorName: req.TranslatorName, WorkTitle: req.WorkTitle, Notes: req.Notes}
-	if err := h.createIntoUC.Execute(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err := h.svc.CreateIntoLanguage(r.Context(), &p); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusCreated, translatedIntoLanguageResponse(&p))
 }
 
@@ -153,7 +193,13 @@ func (h *TranslationHandler) CreateInto(w http.ResponseWriter, r *http.Request) 
 func (h *TranslationHandler) DeleteInto(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
-	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
-	if err := h.deleteIntoUC.Execute(r.Context(), id); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.svc.DeleteIntoLanguage(r.Context(), id); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	WriteJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }

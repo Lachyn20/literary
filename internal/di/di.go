@@ -59,89 +59,29 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 
 	bookPhotoRepo := pg.NewBookPhotoRepository(pool)
 
-	// usecases for works
-	createWorkUC := work.NewCreateWorkUseCase(workRepo)
-	getWorkUC := work.NewGetWorkUseCase(workRepo)
-	listWorkUC := work.NewListWorksUseCase(workRepo)
-	updateWorkUC := work.NewUpdateWorkUseCase(workRepo, localStorage)
-	deleteWorkUC := work.NewDeleteWorkUseCase(workRepo, localStorage)
-
-	// usecases for books
-	createBookUC := book.NewCreateBookUseCase(bookRepo)
-	getBookUC := book.NewGetBookUseCase(bookRepo)
-	listBookUC := book.NewListBooksUseCase(bookRepo)
-	updateBookUC := book.NewUpdateBookUseCase(bookRepo, localStorage)
-	deleteBookUC := book.NewDeleteBookUseCase(bookRepo, bookPhotoRepo, localStorage)
-
-	// broadcasts
-	createBroadcastUC := broadcast.NewCreateBroadcastUseCase(broadcastRepo)
-	getBroadcastUC := broadcast.NewGetBroadcastUseCase(broadcastRepo)
-	listBroadcastUC := broadcast.NewListBroadcastsUseCase(broadcastRepo)
-	updateBroadcastUC := broadcast.NewUpdateBroadcastUseCase(broadcastRepo)
-	deleteBroadcastUC := broadcast.NewDeleteBroadcastUseCase(broadcastRepo, localStorage)
-
-	// films
-	createFilmUC := film.NewCreateFilmUseCase(filmRepo)
-	getFilmUC := film.NewGetFilmUseCase(filmRepo)
-	listFilmUC := film.NewListFilmsUseCase(filmRepo)
-	updateFilmUC := film.NewUpdateFilmUseCase(filmRepo)
-	deleteFilmUC := film.NewDeleteFilmUseCase(filmRepo)
-
-	// photo archive
-	createPhotoUC := photoarchive.NewCreatePhotoArchiveUseCase(photoRepo)
-	getPhotoUC := photoarchive.NewGetPhotoArchiveUseCase(photoRepo)
-	listPhotoUC := photoarchive.NewListPhotoArchiveUseCase(photoRepo)
-	updatePhotoUC := photoarchive.NewUpdatePhotoArchiveUseCase(photoRepo)
-	deletePhotoUC := photoarchive.NewDeletePhotoArchiveUseCase(photoRepo)
-
-	// personal letters
-	createPLUC := personalletter.NewCreatePersonalLetterUseCase(plRepo)
-	getPLUC := personalletter.NewGetPersonalLetterUseCase(plRepo)
-	listPLUC := personalletter.NewListPersonalLettersUseCase(plRepo)
-	updatePLUC := personalletter.NewUpdatePersonalLetterUseCase(plRepo)
-	deletePLUC := personalletter.NewDeletePersonalLetterUseCase(plRepo)
-
-	// translations
-	createByAuthorUC := translation.NewCreateTranslatedByAuthorUseCase(translatedByRepo)
-	getByAuthorUC := translation.NewGetTranslatedByAuthorUseCase(translatedByRepo)
-	listByAuthorUC := translation.NewListTranslatedByAuthorsUseCase(translatedByRepo)
-	deleteByAuthorUC := translation.NewDeleteTranslatedByAuthorUseCase(translatedByRepo)
-
-	createIntoUC := translation.NewCreateTranslatedIntoLanguageUseCase(translatedIntoRepo)
-	getIntoUC := translation.NewGetTranslatedIntoLanguageUseCase(translatedIntoRepo)
-	listIntoUC := translation.NewListTranslatedIntoLanguagesUseCase(translatedIntoRepo)
-	deleteIntoUC := translation.NewDeleteTranslatedIntoLanguageUseCase(translatedIntoRepo)
-
-	// biography
-	createBiographyUC := biography.NewCreateBiographyUseCase(biographyRepo)
-	getBiographyUC := biography.NewGetBiographyUseCase(biographyRepo)
-	updateBiographyUC := biography.NewUpdateBiographyUseCase(biographyRepo)
-
-	// categories
-	createCategoryUC := category.NewCreateCategoryUseCase(categoryRepo)
-	getCategoryUC := category.NewGetCategoryUseCase(categoryRepo)
-	listCategoriesUC := category.NewListCategoriesUseCase(categoryRepo)
-	updateCategoryUC := category.NewUpdateCategoryUseCase(categoryRepo)
-	deleteCategoryUC := category.NewDeleteCategoryUseCase(categoryRepo)
-
-	// theatre
-	createTheatreUC := theatre.NewCreateTheatreProductionUseCase(theatreRepo)
-	getTheatreUC := theatre.NewGetTheatreProductionUseCase(theatreRepo)
-	listTheatreUC := theatre.NewListTheatreProductionsUseCase(theatreRepo)
-	updateTheatreUC := theatre.NewUpdateTheatreProductionUseCase(theatreRepo)
-	deleteTheatreUC := theatre.NewDeleteTheatreProductionUseCase(theatreRepo)
+	// services
+	workSvc := work.NewWorkService(workRepo, localStorage)
+	bookSvc := book.NewBookService(bookRepo, bookPhotoRepo, localStorage)
+	broadcastSvc := broadcast.NewBroadcastService(broadcastRepo, localStorage)
+	filmSvc := film.NewFilmService(filmRepo, localStorage)
+	photoSvc := photoarchive.NewPhotoArchiveService(photoRepo, localStorage)
+	plSvc := personalletter.NewPersonalLetterService(plRepo, localStorage)
+	translationSvc := translation.NewTranslationService(translatedByRepo, translatedIntoRepo)
+	bioSvc := biography.NewBiographyService(biographyRepo, localStorage)
+	categorySvc := category.NewCategoryService(categoryRepo)
+	theatreSvc := theatre.NewTheatreService(theatreRepo)
 
 	// handlers
-	workHandler := handler.NewWorkHandler(createWorkUC, getWorkUC, listWorkUC, updateWorkUC, deleteWorkUC, localStorage)
-	bookHandler := handler.NewBookHandler(createBookUC, getBookUC, listBookUC, updateBookUC, deleteBookUC, localStorage)
-	broadcastHandler := handler.NewBroadcastHandler(createBroadcastUC, getBroadcastUC, listBroadcastUC, updateBroadcastUC, deleteBroadcastUC, localStorage)
-	filmHandler := handler.NewFilmHandler(createFilmUC, getFilmUC, listFilmUC, updateFilmUC, deleteFilmUC, localStorage)
-	photoHandler := handler.NewPhotoArchiveHandler(createPhotoUC, getPhotoUC, listPhotoUC, updatePhotoUC, deletePhotoUC, localStorage)
-	plHandler := handler.NewPersonalLetterHandler(createPLUC, getPLUC, listPLUC, updatePLUC, deletePLUC, localStorage)
-	translationHandler := handler.NewTranslationHandler(createByAuthorUC, getByAuthorUC, listByAuthorUC, deleteByAuthorUC, createIntoUC, getIntoUC, listIntoUC, deleteIntoUC)
-	bioHandler := handler.NewBiographyHandler(getBiographyUC, createBiographyUC, updateBiographyUC, localStorage)
-	categoryHandler := handler.NewCategoryHandler(createCategoryUC, getCategoryUC, listCategoriesUC, updateCategoryUC, deleteCategoryUC)
-	theatreHandler := handler.NewTheatreHandler(createTheatreUC, getTheatreUC, listTheatreUC, updateTheatreUC, deleteTheatreUC)
+	workHandler := handler.NewWorkHandler(workSvc, localStorage)
+	bookHandler := handler.NewBookHandler(bookSvc, localStorage)
+	broadcastHandler := handler.NewBroadcastHandler(broadcastSvc, localStorage)
+	filmHandler := handler.NewFilmHandler(filmSvc, localStorage)
+	photoHandler := handler.NewPhotoArchiveHandler(photoSvc, localStorage)
+	plHandler := handler.NewPersonalLetterHandler(plSvc, localStorage)
+	translationHandler := handler.NewTranslationHandler(translationSvc)
+	bioHandler := handler.NewBiographyHandler(bioSvc, localStorage)
+	categoryHandler := handler.NewCategoryHandler(categorySvc)
+	theatreHandler := handler.NewTheatreHandler(theatreSvc)
 
 	registrars := []prouter.RouteRegistrar{workHandler, bookHandler, broadcastHandler, filmHandler, photoHandler, plHandler, translationHandler, bioHandler, categoryHandler, theatreHandler}
 

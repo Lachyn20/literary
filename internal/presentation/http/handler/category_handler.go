@@ -13,21 +13,11 @@ import (
 )
 
 type CategoryHandler struct {
-	createUC *category.CreateCategoryUseCase
-	getUC    *category.GetCategoryUseCase
-	listUC   *category.ListCategoriesUseCase
-	updateUC *category.UpdateCategoryUseCase
-	deleteUC *category.DeleteCategoryUseCase
+	svc *category.CategoryService
 }
 
-func NewCategoryHandler(
-	create *category.CreateCategoryUseCase,
-	get *category.GetCategoryUseCase,
-	list *category.ListCategoriesUseCase,
-	update *category.UpdateCategoryUseCase,
-	del *category.DeleteCategoryUseCase,
-) *CategoryHandler {
-	return &CategoryHandler{createUC: create, getUC: get, listUC: list, updateUC: update, deleteUC: del}
+func NewCategoryHandler(svc *category.CategoryService) *CategoryHandler {
+	return &CategoryHandler{svc: svc}
 }
 
 func (h *CategoryHandler) RegisterRoutes(r chi.Router) {
@@ -44,7 +34,7 @@ func (h *CategoryHandler) RegisterRoutes(r chi.Router) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/categories [get]
 func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	categories, err := h.listUC.Execute(r.Context())
+	categories, err := h.svc.List(r.Context())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -67,7 +57,7 @@ func (h *CategoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	category, err := h.getUC.Execute(r.Context(), id)
+	category, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
 		WriteError(w, http.StatusNotFound, err.Error())
 		return
@@ -98,7 +88,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ID:   uuid.New(),
 		Name: req.Name,
 	}
-	if err := h.createUC.Execute(r.Context(), category); err != nil {
+	if err := h.svc.Create(r.Context(), category); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -136,7 +126,7 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:   id,
 		Name: req.Name,
 	}
-	if err := h.updateUC.Execute(r.Context(), category); err != nil {
+	if err := h.svc.Update(r.Context(), category); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -157,7 +147,7 @@ func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := h.deleteUC.Execute(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), id); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
