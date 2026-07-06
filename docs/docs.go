@@ -78,10 +78,9 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create the initial author biography (supports JSON or multipart for image upload)",
+                "description": "Create the initial author biography (multipart, optional photo)",
                 "consumes": [
-                    "application/json",
-                    " multipart/form-data"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -92,24 +91,10 @@ const docTemplate = `{
                 "summary": "Create biography",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Biography content (used in multipart)",
-                        "name": "content",
-                        "in": "formData"
-                    },
-                    {
                         "type": "file",
-                        "description": "Biography image file (used in multipart)",
+                        "description": "Author photo (jpg, jpeg, png, webp)",
                         "name": "photo",
                         "in": "formData"
-                    },
-                    {
-                        "description": "Biography content (used in JSON)",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/dto.BiographyCreateRequest"
-                        }
                     }
                 ],
                 "responses": {
@@ -118,6 +103,174 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/dto.BiographyResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/biography/events": {
+            "get": {
+                "description": "Get biography timeline events in the specified language. Falls back to Turkmen if the requested language field is empty.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "biography"
+                ],
+                "summary": "List biography events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Language code: tk (default), ru, en",
+                        "name": "lang",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "summary": "Create biography event",
+                "parameters": [
+                    {
+                        "description": "Biography event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BiographyEventCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BiographyEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/biography/events/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "summary": "Update biography event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Biography event partial",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BiographyEventUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BiographyEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.JSONResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Delete biography event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -2135,23 +2288,111 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.BiographyCreateRequest": {
+        "dto.BiographyEventCreateRequest": {
             "type": "object",
             "required": [
-                "content"
+                "title_tk",
+                "year"
             ],
             "properties": {
-                "content": {
+                "description_en": {
                     "type": "string"
+                },
+                "description_ru": {
+                    "type": "string"
+                },
+                "description_tk": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title_en": {
+                    "type": "string"
+                },
+                "title_ru": {
+                    "type": "string"
+                },
+                "title_tk": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer",
+                    "maximum": 2100,
+                    "minimum": 1800
+                }
+            }
+        },
+        "dto.BiographyEventResponse": {
+            "type": "object",
+            "properties": {
+                "biography_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description_en": {
+                    "type": "string"
+                },
+                "description_ru": {
+                    "type": "string"
+                },
+                "description_tk": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title_en": {
+                    "type": "string"
+                },
+                "title_ru": {
+                    "type": "string"
+                },
+                "title_tk": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BiographyEventUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "description_en": {
+                    "type": "string"
+                },
+                "description_ru": {
+                    "type": "string"
+                },
+                "description_tk": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title_en": {
+                    "type": "string"
+                },
+                "title_ru": {
+                    "type": "string"
+                },
+                "title_tk": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },
         "dto.BiographyResponse": {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -2164,15 +2405,7 @@ const docTemplate = `{
             }
         },
         "dto.BiographyUpdateRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                }
-            }
+            "type": "object"
         },
         "dto.BookListResponse": {
             "type": "object",

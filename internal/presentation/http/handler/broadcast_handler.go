@@ -67,7 +67,7 @@ func (h *BroadcastHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param broadcast_type formData string true "Broadcast type: tv or radio"
 // @Param channel_name formData string false "Channel name"
 // @Param broadcast_date formData string false "Broadcast date in RFC3339"
-// @Param file formData file false "Audio or video file"
+// @Param file formData file false "Media file — tv: .mp4 .mov .mkv | radio: .mp3 .wav .aac"
 // @Success 201 {object} dto.BroadcastResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -97,23 +97,18 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-
 			lower := strings.ToLower(fh.Filename)
-			isVideo := strings.Contains(lower, ".mp4") || strings.Contains(lower, ".mov") || strings.Contains(lower, ".mkv")
-			isAudio := strings.Contains(lower, ".mp3") || strings.Contains(lower, ".wav") || strings.Contains(lower, ".aac")
-			if !isVideo && !isAudio {
-				WriteError(w, http.StatusBadRequest, "unsupported file type")
-				return
-			}
-
-			if broadcastType == "tv" && !isVideo {
-				WriteError(w, http.StatusBadRequest, "tv broadcasts require a video file")
-				return
-			}
-
-			if broadcastType == "radio" && !isAudio {
-				WriteError(w, http.StatusBadRequest, "radio broadcasts require an audio file")
-				return
+			isVideo := strings.HasSuffix(lower, ".mp4") || strings.HasSuffix(lower, ".mov") || strings.HasSuffix(lower, ".mkv")
+			if broadcastType == "tv" {
+				if !isAllowedExtension(fh.Filename, []string{".mp4", ".mov", ".mkv"}) {
+					WriteError(w, http.StatusBadRequest, "broadcast_type 'tv' requires video file: .mp4, .mov, .mkv")
+					return
+				}
+			} else if broadcastType == "radio" {
+				if !isAllowedExtension(fh.Filename, []string{".mp3", ".wav", ".aac"}) {
+					WriteError(w, http.StatusBadRequest, "broadcast_type 'radio' requires audio file: .mp3, .wav, .aac")
+					return
+				}
 			}
 			// choose type by extension
 			typ := "audio"
@@ -165,7 +160,7 @@ func (h *BroadcastHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param broadcast_type formData string false "Broadcast type: tv or radio"
 // @Param channel_name formData string false "Channel name"
 // @Param broadcast_date formData string false "Broadcast date in RFC3339"
-// @Param file formData file false "Audio or video file"
+// @Param file formData file false "Media file — tv: .mp4, .mov, .mkv | radio: .mp3, .wav, .aac"
 // @Success 200 {object} dto.BroadcastResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -209,14 +204,16 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 			}
 
 			currentType := string(b.BroadcastType)
-			if currentType == "tv" && !isVideo {
-				WriteError(w, http.StatusBadRequest, "tv broadcasts require a video file")
+        if currentType == "tv" {
+			if !isVideo {
+				WriteError(w, http.StatusBadRequest, "broadcast_type 'tv' requires video file: .mp4, .mov, .mkv")
 				return
 			}
-
-			if currentType == "radio" && !isAudio {	
-				WriteError(w, http.StatusBadRequest, "radio broadcasts require an audio file")
+		} else if currentType == "radio" {
+			if !isAudio {
+				WriteError(w, http.StatusBadRequest, "broadcast_type 'radio' requires audio file: .mp3, .wav, .aac")
 				return
+			}
 			}
 
 			typ := "audio"
@@ -251,10 +248,12 @@ func (h *BroadcastHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req dto.BroadcastCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 
-	if req.Title != "" {
-		b.Title = req.Title
-	}
+	if req.Title != "" { b.Title = req.Title }
 	if req.BroadcastType != "" {
+		if req.BroadcastType != "tv" && req.BroadcastType != "radio" {
+			WriteError(w, http.StatusBadRequest, "broadcast_type must be 'tv' or 'radio'")
+			return
+		}
 		b.BroadcastType = entity.BroadcastType(req.BroadcastType)
 	}
 	if req.ChannelName != "" {

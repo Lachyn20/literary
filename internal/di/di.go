@@ -53,6 +53,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	translatedByRepo := pg.NewTranslatedByAuthorRepository(pool)
 	translatedIntoRepo := pg.NewTranslatedIntoLanguageRepository(pool)
 	biographyRepo := pg.NewBiographyRepository(pool)
+	biographyEventRepo := pg.NewBiographyEventRepository(pool)
 	theatreRepo := pg.NewTheatreProductionRepository(pool)
 	categoryRepo := pg.NewCategoryRepository(pool)
 	localStorage := storage.NewLocalStorage(cfg.UploadBasePath)
@@ -68,6 +69,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	plSvc := personalletter.NewPersonalLetterService(plRepo, localStorage)
 	translationSvc := translation.NewTranslationService(translatedByRepo, translatedIntoRepo)
 	bioSvc := biography.NewBiographyService(biographyRepo, localStorage)
+	biographyEventSvc := biography.NewBiographyEventService(biographyEventRepo, biographyRepo)
 	categorySvc := category.NewCategoryService(categoryRepo)
 	theatreSvc := theatre.NewTheatreService(theatreRepo)
 
@@ -80,10 +82,11 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	plHandler := handler.NewPersonalLetterHandler(plSvc, localStorage)
 	translationHandler := handler.NewTranslationHandler(translationSvc)
 	bioHandler := handler.NewBiographyHandler(bioSvc, localStorage)
+	biographyEventHandler := handler.NewBiographyEventHandler(biographyEventSvc, bioSvc)
 	categoryHandler := handler.NewCategoryHandler(categorySvc)
 	theatreHandler := handler.NewTheatreHandler(theatreSvc)
 
-	registrars := []prouter.RouteRegistrar{workHandler, bookHandler, broadcastHandler, filmHandler, photoHandler, plHandler, translationHandler, bioHandler, categoryHandler, theatreHandler}
+	registrars := []prouter.RouteRegistrar{workHandler, bookHandler, broadcastHandler, filmHandler, photoHandler, plHandler, translationHandler, bioHandler, biographyEventHandler, categoryHandler, theatreHandler}
 
 	// small provider to satisfy router's tokenGen param
 	tg := &jwtProvider{j: jwt}

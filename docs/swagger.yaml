@@ -1,16 +1,75 @@
 basePath: /
 definitions:
-  dto.BiographyCreateRequest:
+  dto.BiographyEventCreateRequest:
     properties:
-      content:
+      description_en:
         type: string
+      description_ru:
+        type: string
+      description_tk:
+        type: string
+      sort_order:
+        type: integer
+      title_en:
+        type: string
+      title_ru:
+        type: string
+      title_tk:
+        type: string
+      year:
+        maximum: 2100
+        minimum: 1800
+        type: integer
     required:
-    - content
+    - title_tk
+    - year
+    type: object
+  dto.BiographyEventResponse:
+    properties:
+      biography_id:
+        type: string
+      created_at:
+        type: string
+      description_en:
+        type: string
+      description_ru:
+        type: string
+      description_tk:
+        type: string
+      id:
+        type: string
+      sort_order:
+        type: integer
+      title_en:
+        type: string
+      title_ru:
+        type: string
+      title_tk:
+        type: string
+      year:
+        type: integer
+    type: object
+  dto.BiographyEventUpdateRequest:
+    properties:
+      description_en:
+        type: string
+      description_ru:
+        type: string
+      description_tk:
+        type: string
+      sort_order:
+        type: integer
+      title_en:
+        type: string
+      title_ru:
+        type: string
+      title_tk:
+        type: string
+      year:
+        type: integer
     type: object
   dto.BiographyResponse:
     properties:
-      content:
-        type: string
       id:
         type: string
       photo_path:
@@ -19,11 +78,6 @@ definitions:
         type: string
     type: object
   dto.BiographyUpdateRequest:
-    properties:
-      content:
-        type: string
-    required:
-    - content
     type: object
   dto.BookListResponse:
     properties:
@@ -336,24 +390,13 @@ paths:
       summary: Get biography
     post:
       consumes:
-      - application/json
-      - ' multipart/form-data'
-      description: Create the initial author biography (supports JSON or multipart
-        for image upload)
+      - multipart/form-data
+      description: Create the initial author biography (multipart, optional photo)
       parameters:
-      - description: Biography content (used in multipart)
-        in: formData
-        name: content
-        type: string
-      - description: Biography image file (used in multipart)
+      - description: Author photo (jpg, jpeg, png, webp)
         in: formData
         name: photo
         type: file
-      - description: Biography content (used in JSON)
-        in: body
-        name: request
-        schema:
-          $ref: '#/definitions/dto.BiographyCreateRequest'
       produces:
       - application/json
       responses:
@@ -399,6 +442,113 @@ paths:
           schema:
             $ref: '#/definitions/handler.JSONResponse'
       summary: Update biography
+  /api/biography/events:
+    get:
+      description: Get biography timeline events in the specified language. Falls
+        back to Turkmen if the requested language field is empty.
+      parameters:
+      - description: 'Language code: tk (default), ru, en'
+        in: query
+        name: lang
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      summary: List biography events
+      tags:
+      - biography
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Biography event
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BiographyEventCreateRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BiographyEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      security:
+      - BearerAuth: []
+      summary: Create biography event
+  /api/biography/events/{id}:
+    delete:
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete biography event
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Biography event partial
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BiographyEventUpdateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BiographyEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.JSONResponse'
+      security:
+      - BearerAuth: []
+      summary: Update biography event
   /api/books:
     get:
       description: List all books

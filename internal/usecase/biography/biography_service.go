@@ -3,6 +3,7 @@ package biography
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hemra-siirow/literary/internal/domain/entity"
@@ -50,4 +51,47 @@ func (s *BiographyService) Update(ctx context.Context, biography *entity.Biograp
 	}
 
 	return nil
+}
+
+type BiographyEventService struct {
+	repo    repository.BiographyEventRepository
+	bioRepo repository.BiographyRepository
+}
+
+func NewBiographyEventService(repo repository.BiographyEventRepository, bioRepo repository.BiographyRepository) *BiographyEventService {
+	return &BiographyEventService{repo: repo, bioRepo: bioRepo}
+}
+
+func (s *BiographyEventService) Create(ctx context.Context, event *entity.BiographyEvent) error {
+	// Ensure biography exists
+	bio, err := s.bioRepo.GetLatest(ctx)
+	if err != nil {
+		return errors.New("biography not found, create biography first")
+	}
+	if bio == nil {
+		return errors.New("biography not found, create biography first")
+	}
+
+	if event.ID == uuid.Nil {
+		event.ID = uuid.New()
+	}
+	event.BiographyID = bio.ID
+	event.CreatedAt = time.Now()
+	return s.repo.Create(ctx, event)
+}
+
+func (s *BiographyEventService) GetByID(ctx context.Context, id uuid.UUID) (*entity.BiographyEvent, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *BiographyEventService) List(ctx context.Context, biographyID uuid.UUID) ([]*entity.BiographyEvent, error) {
+	return s.repo.ListByBiographyID(ctx, biographyID)
+}
+
+func (s *BiographyEventService) Update(ctx context.Context, event *entity.BiographyEvent) error {
+	return s.repo.Update(ctx, event)
+}
+
+func (s *BiographyEventService) Delete(ctx context.Context, id uuid.UUID) error {
+	return s.repo.Delete(ctx, id)
 }

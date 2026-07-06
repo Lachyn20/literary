@@ -129,6 +129,14 @@ type BiographyRepository interface {
 	Update(ctx context.Context, biography *entity.Biography) error
 }
 
+type BiographyEventRepository interface {
+	Create(ctx context.Context, event *entity.BiographyEvent) error
+	GetByID(ctx context.Context, id uuid.UUID) (*entity.BiographyEvent, error)
+	ListByBiographyID(ctx context.Context, biographyID uuid.UUID) ([]*entity.BiographyEvent, error)
+	Update(ctx context.Context, event *entity.BiographyEvent) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
 type PersonalLetterRepository interface {
 	Create(ctx context.Context, letter *entity.PersonalLetter) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.PersonalLetter, error)

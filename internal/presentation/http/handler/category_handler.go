@@ -117,20 +117,20 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
-	if err := validation.Struct(req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	// allow partial update: fetch existing and overlay
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, err.Error())
 		return
 	}
-
-	category := &entity.Category{
-		ID:   id,
-		Name: req.Name,
+	if req.Name != "" {
+		old.Name = req.Name
 	}
-	if err := h.svc.Update(r.Context(), category); err != nil {
+	if err := h.svc.Update(r.Context(), old); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteJSON(w, http.StatusOK, categoryResponse(category))
+	WriteJSON(w, http.StatusOK, categoryResponse(old))
 }
 
 // @Summary Delete category

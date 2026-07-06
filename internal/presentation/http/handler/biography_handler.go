@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -10,8 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
-	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
-	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/biography"
 )
 
@@ -43,85 +40,51 @@ func (h *BiographyHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
 
 
 // @Summary Create biography
-// @Description Create the initial author biography (supports JSON or multipart for image upload)
+// @Description Create the initial author biography (multipart, optional photo)
 // @Tags biography
-// @Accept json, multipart/form-data
+// @Accept multipart/form-data
 // @Produce json
-// @Param content formData string false "Biography content (used in multipart)"
-// @Param photo formData file false "Biography image file (used in multipart)"
-// @Param request body dto.BiographyCreateRequest false "Biography content (used in JSON)"
+// @Param photo formData file false "Author photo (jpg, jpeg, png, webp)"
 // @Success 201 {object} dto.BiographyResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Security BearerAuth
 // @Router /api/biography [post]
 func (h *BiographyHandler) Create(w http.ResponseWriter, r *http.Request) {
-	// 1. Ýagdaý: Eger multipart/form-data (suratly) ugradylan bolsa
-	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid multipart form")
-			return
-		}
-
-		content := r.FormValue("content")
-		if content == "" {
-			WriteError(w, http.StatusBadRequest, "content is required")
-			return
-		}
-
-		b := &entity.Biography{
-			ID:        uuid.New(),
-			Content:   content,
-			UpdatedAt: time.Now(),
-		}
-
-		var photoPath string
-		var savedPhoto bool
-
-		// Suraty okamak we h.store arkaly ýazdyrmak (BookHandler-däki ýaly)
-		photo, ph, err := r.FormFile("photo")
-		if err == nil {
-			defer photo.Close()
-			photoPath, err = h.store.Save(photo, ph.Filename, "biography")
-			if err != nil {
-				WriteError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			savedPhoto = true
-			b.PhotoPath = &photoPath
-		}
-
-		// UseCase çagyrmak
-		if err := h.svc.Create(r.Context(), b); err != nil {
-			if savedPhoto {
-				_ = h.store.Remove(photoPath) // Ýalňyşlyk boldy, ýüklenen suraty öçürýäris
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		WriteJSON(w, http.StatusCreated, biographyResponse(b))
+	// Only accept multipart/form-data with optional photo
+	ct := r.Header.Get("Content-Type")
+	if ct == "" || !strings.HasPrefix(ct, "multipart/") {
+		WriteError(w, http.StatusBadRequest, "only multipart/form-data is accepted")
 		return
 	}
 
-	// 2. Ýagdaý: Eger diňe JSON ugradylan bolsa (suratsyz)
-	var req dto.BiographyCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid payload")
-		return
-	}
-	if err := validation.Struct(req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
 
 	b := &entity.Biography{
 		ID:        uuid.New(),
-		Content:   req.Content,
 		UpdatedAt: time.Now(),
 	}
 
+	photo, ph, err := r.FormFile("photo")
+	if err == nil {
+		defer photo.Close()
+		if !isAllowedExtension(ph.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+			WriteError(w, http.StatusBadRequest, "photo must be .jpg, .jpeg, .png, or .webp")
+			return
+		}
+		savedPath, err := h.store.Save(photo, ph.Filename, "biography")
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to save photo")
+			return
+		}
+		b.PhotoPath = &savedPath
+	}
+
 	if err := h.svc.Create(r.Context(), b); err != nil {
+		if b.PhotoPath != nil { _ = h.store.Remove(*b.PhotoPath) }
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -138,12 +101,41 @@ func (h *BiographyHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/biography [put]
 func (h *BiographyHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var req dto.BiographyUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	b, err := h.svc.GetLatest(r.Context())
-	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	b.Content = req.Content
-	if err := h.svc.Update(r.Context(), b); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, biographyResponse(b))
+	// Only support multipart photo update
+	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid multipart form")
+			return
+		}
+		b, err := h.svc.GetLatest(r.Context())
+		if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+
+		photo, ph, err := r.FormFile("photo")
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "photo is required")
+			return
+		}
+		defer photo.Close()
+		if !isAllowedExtension(ph.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+			WriteError(w, http.StatusBadRequest, "photo must be .jpg, .jpeg, .png, or .webp")
+			return
+		}
+		photoPath, err := h.store.Save(photo, ph.Filename, "biography")
+		if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+
+		oldPath := b.PhotoPath
+		b.PhotoPath = &photoPath
+		b.UpdatedAt = time.Now()
+		if err := h.svc.Update(r.Context(), b); err != nil {
+			_ = h.store.Remove(photoPath)
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if oldPath != nil && *oldPath != photoPath {
+			_ = h.store.Remove(*oldPath)
+		}
+		WriteJSON(w, http.StatusOK, biographyResponse(b))
+		return
+	}
+	WriteError(w, http.StatusBadRequest, "only multipart photo update supported")
 }

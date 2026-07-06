@@ -66,7 +66,7 @@ func (h *PersonalLetterHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param title formData string true "Title"
 // @Param content formData string true "Content"
 // @Param letter_date formData string false "Letter date in RFC3339"
-// @Param scan formData file false "Scan image or PDF"
+// @Param scan formData file false "Scan image or PDF — accepted: .jpg, .jpeg, .png, .webp, .pdf"
 // @Success 201 {object} dto.PersonalLetterResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -83,6 +83,10 @@ func (h *PersonalLetterHandler) Create(w http.ResponseWriter, r *http.Request) {
 		scan, sh, err := r.FormFile("scan")
 		if err == nil {
 			defer scan.Close()
+			if !isAllowedExtension(sh.Filename, []string{".jpg", ".jpeg", ".png", ".webp", ".pdf"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp, .pdf files are allowed")
+				return
+			}
 			path, err := h.store.Save(scan, sh.Filename, "scan")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			p.ScanImagePath = &path
@@ -109,7 +113,7 @@ func (h *PersonalLetterHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param title formData string false "Title"
 // @Param content formData string false "Content"
 // @Param letter_date formData string false "Letter date in RFC3339"
-// @Param scan formData file false "Scan image or PDF"
+// @Param scan formData file false "Scan image or PDF — accepted: .jpg, .jpeg, .png, .webp, .pdf"
 // @Success 200 {object} dto.PersonalLetterResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -120,27 +124,50 @@ func (h *PersonalLetterHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil { WriteError(w, http.StatusBadRequest, "invalid id"); return }
 	if ct := r.Header.Get("Content-Type"); ct != "" && strings.HasPrefix(ct, "multipart/") {
 		if err := r.ParseMultipartForm(16 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
-		var p entity.PersonalLetter
-		p.ID = id
-		p.Title = r.FormValue("title")
-		p.Content = r.FormValue("content")
-		if v := r.FormValue("letter_date"); v != "" { if t, err := time.Parse(time.RFC3339, v); err == nil { p.LetterDate = t } }
+		old, err := h.svc.GetByID(r.Context(), id)
+		if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+		updated := *old
+		if v := r.FormValue("title"); v != "" { updated.Title = v }
+		if v := r.FormValue("content"); v != "" { updated.Content = v }
+		if v := r.FormValue("letter_date"); v != "" { if t, err := time.Parse(time.RFC3339, v); err == nil { updated.LetterDate = t } }
+
+		var savedNew bool
+		var newPath string
+		prevPath := ""
+		if updated.ScanImagePath != nil { prevPath = *updated.ScanImagePath }
+
 		scan, sh, err := r.FormFile("scan")
 		if err == nil {
 			defer scan.Close()
+			if !isAllowedExtension(sh.Filename, []string{".jpg", ".jpeg", ".png", ".webp", ".pdf"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp, .pdf files are allowed")
+				return
+			}
 			path, err := h.store.Save(scan, sh.Filename, "scan")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			p.ScanImagePath = &path
+			newPath = path
+			savedNew = true
+			updated.ScanImagePath = &newPath
 		}
-		if err := h.svc.Update(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-		WriteJSON(w, http.StatusOK, personalLetterResponse(&p))
+
+		if err := h.svc.Update(r.Context(), &updated); err != nil {
+			if savedNew { _ = h.store.Remove(newPath) }
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if savedNew && prevPath != "" && prevPath != newPath { _ = h.store.Remove(prevPath) }
+		WriteJSON(w, http.StatusOK, personalLetterResponse(&updated))
 		return
 	}
 
 	var req dto.PersonalLetterCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
-	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	p := entity.PersonalLetter{ID: id, Title: req.Title, Content: req.Content}
+	// allow partial updates: fetch existing and overlay provided fields
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	p := *old
+	if req.Title != "" { p.Title = req.Title }
+	if req.Content != "" { p.Content = req.Content }
 	if req.LetterDate != nil { p.LetterDate = *req.LetterDate }
 	if err := h.svc.Update(r.Context(), &p); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
 	WriteJSON(w, http.StatusOK, personalLetterResponse(&p))

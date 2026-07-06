@@ -19,24 +19,35 @@ func NewBiographyRepository(pool *pgxpool.Pool) *BiographyRepository {
 }
 
 func (r *BiographyRepository) Create(ctx context.Context, biography *entity.Biography) error {
-	_, err := r.pool.Exec(ctx, `INSERT INTO biography (id, content, photo_path, updated_at) VALUES ($1,$2,$3,$4)`, biography.ID, biography.Content, biography.PhotoPath, biography.UpdatedAt)
+	_, err := r.pool.Exec(ctx, `INSERT INTO biography (id, photo_path, updated_at) VALUES ($1,$2,$3)`, biography.ID, biography.PhotoPath, biography.UpdatedAt)
 	return err
 }
 
 func (r *BiographyRepository) GetLatest(ctx context.Context) (*entity.Biography, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id, content, photo_path, updated_at FROM biography ORDER BY updated_at DESC LIMIT 1`)
+	row := r.pool.QueryRow(ctx, `SELECT id, photo_path, updated_at FROM biography ORDER BY updated_at DESC LIMIT 1`)
 	var biography entity.Biography
-	if err := row.Scan(&biography.ID, &biography.Content, &biography.PhotoPath, &biography.UpdatedAt); err != nil {
+	if err := row.Scan(&biography.ID, &biography.PhotoPath, &biography.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, repository.ErrNotFound
 		}
 		return nil, err
 	}
+
+	// Load events for the biography
+	eventRepo := NewBiographyEventRepository(r.pool)
+	events, err := eventRepo.ListByBiographyID(ctx, biography.ID)
+	if err == nil {
+		biography.Events = make([]entity.BiographyEvent, 0, len(events))
+		for _, e := range events {
+			biography.Events = append(biography.Events, *e)
+		}
+	}
+
 	return &biography, nil
 }
 
 func (r *BiographyRepository) Update(ctx context.Context, biography *entity.Biography) error {
-	cmd, err := r.pool.Exec(ctx, `UPDATE biography SET content=$1, photo_path=$2, updated_at=$3 WHERE id=$4`, biography.Content, biography.PhotoPath, biography.UpdatedAt, biography.ID)
+	cmd, err := r.pool.Exec(ctx, `UPDATE biography SET photo_path=$1, updated_at=$2 WHERE id=$3`, biography.PhotoPath, biography.UpdatedAt, biography.ID)
 	if err != nil {
 		return err
 	}

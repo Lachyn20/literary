@@ -69,7 +69,7 @@ func (h *FilmHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param release_year formData int false "Release year"
 // @Param director formData string false "Director"
 // @Param based_on_scenario formData bool false "Based on scenario"
-// @Param file formData file false "Video file"
+// @Param file formData file false "Video file — accepted: .mp4, .mov, .mkv"
 // @Success 201 {object} dto.FilmResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -90,9 +90,8 @@ func (h *FilmHandler) Create(w http.ResponseWriter, r *http.Request) {
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			lower := strings.ToLower(fh.Filename)
-			if !strings.HasSuffix(lower, ".mp4") && !strings.HasSuffix(lower, ".mov") && !strings.HasSuffix(lower, ".mkv") && !strings.HasSuffix(lower, ".avi") {
-				WriteError(w, http.StatusBadRequest, "unsupported video file type")
+			if !isAllowedExtension(fh.Filename, []string{".mp4", ".mov", ".mkv"}) {
+				WriteError(w, http.StatusBadRequest, "only .mp4, .mov, .mkv video files are allowed")
 				return
 			}
 			savedPath, err = h.store.Save(file, fh.Filename, "video")
@@ -127,7 +126,7 @@ func (h *FilmHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param release_year formData int false "Release year"
 // @Param director formData string false "Director"
 // @Param based_on_scenario formData bool false "Based on scenario"
-// @Param file formData file false "Video file"
+// @Param file formData file false "Video file — accepted: .mp4, .mov, .mkv"
 // @Success 200 {object} dto.FilmResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -158,9 +157,8 @@ func (h *FilmHandler) Update(w http.ResponseWriter, r *http.Request) {
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			lower := strings.ToLower(fh.Filename)
-			if !strings.HasSuffix(lower, ".mp4") && !strings.HasSuffix(lower, ".mov") && !strings.HasSuffix(lower, ".mkv") && !strings.HasSuffix(lower, ".avi") {
-				WriteError(w, http.StatusBadRequest, "unsupported video file type")
+			if !isAllowedExtension(fh.Filename, []string{".mp4", ".mov", ".mkv"}) {
+				WriteError(w, http.StatusBadRequest, "only .mp4, .mov, .mkv video files are allowed")
 				return
 			}
 			savedPath, err = h.store.Save(file, fh.Filename, "video")
@@ -183,9 +181,25 @@ func (h *FilmHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req dto.FilmCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	f := entity.Film{ID: id, Title: req.Title, FilmType: entity.FilmType(req.FilmType), BasedOnScenario: req.BasedOnScenario, Director: req.Director, ReleaseYear: req.ReleaseYear}
-	if err := h.svc.Update(r.Context(), &f); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, filmResponse(&f))
+
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	updated := *old
+	if req.Title != "" { updated.Title = req.Title }
+	if req.FilmType != "" {
+		// validate film_type
+		if req.FilmType != "film" && req.FilmType != "animation" {
+			WriteError(w, http.StatusBadRequest, "film_type must be 'film' or 'animation'")
+			return
+		}
+		updated.FilmType = entity.FilmType(req.FilmType)
+	}
+	if req.ReleaseYear != nil { updated.ReleaseYear = req.ReleaseYear }
+	if req.Director != nil { updated.Director = req.Director }
+	updated.BasedOnScenario = req.BasedOnScenario
+
+	if err := h.svc.Update(r.Context(), &updated); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusOK, filmResponse(&updated))
 }
 
 // @Summary Delete film

@@ -80,8 +80,8 @@ func (h *BookHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param bibliographic_info formData string false "Bibliographic info"
 // @Param page_count formData int false "Page count"
 // @Param published_year formData int false "Published year"
-// @Param cover formData file false "Cover image file"
-// @Param pdf formData file false "PDF file"
+// @Param cover formData file false "Cover image — accepted: .jpg, .jpeg, .png, .webp"
+// @Param pdf formData file false "Book PDF — accepted: .pdf"
 // @Success 201 {object} dto.BookResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -120,6 +120,10 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		cover, ch, err := r.FormFile("cover")
 		if err == nil {
 			defer cover.Close()
+			if !isAllowedExtension(ch.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp files are allowed for cover")
+				return
+			}
 			coverPath, err := h.store.Save(cover, ch.Filename, "image")
 			if err != nil {
 				WriteError(w, http.StatusBadRequest, err.Error())
@@ -132,6 +136,10 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		pdf, ph, err := r.FormFile("pdf")
 		if err == nil {
 			defer pdf.Close()
+			if !isAllowedExtension(ph.Filename, []string{".pdf"}) {
+				WriteError(w, http.StatusBadRequest, "only .pdf files are allowed for book")
+				return
+			}
 			pdfPath, err := h.store.Save(pdf, ph.Filename, "book")
 			if err != nil {
 				if savedCover {
@@ -184,8 +192,8 @@ func (h *BookHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param bibliographic_info formData string false "Bibliographic info"
 // @Param page_count formData int false "Page count"
 // @Param published_year formData int false "Published year"
-// @Param cover formData file false "Cover image file"
-// @Param pdf formData file false "PDF file"
+// @Param cover formData file false "Cover image — accepted: .jpg, .jpeg, .png, .webp"
+// @Param pdf formData file false "Book PDF — accepted: .pdf"
 // @Success 200 {object} dto.BookResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -203,81 +211,90 @@ func (h *BookHandler) Update(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusBadRequest, "invalid multipart")
 			return
 		}
-		var b entity.Book
-		b.ID = id
-		b.Title = r.FormValue("title")
-		if v := r.FormValue("bibliographic_info"); v != "" {
-			b.BibliographicInfo = &v
-		}
+
+		old, err := h.svc.GetByID(r.Context(), id)
+		if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+		updated := *old
+
+		if v := r.FormValue("title"); v != "" { updated.Title = v }
+		if v := r.FormValue("bibliographic_info"); v != "" { updated.BibliographicInfo = &v }
 		if v := r.FormValue("page_count"); v != "" {
-			if i, err := strconv.Atoi(v); err == nil {
-				b.PageCount = &i
-			}
+			if i, err := strconv.Atoi(v); err == nil { updated.PageCount = &i }
 		}
 		if v := r.FormValue("published_year"); v != "" {
-			if i, err := strconv.Atoi(v); err == nil {
-				b.PublishedYear = &i
-			}
+			if i, err := strconv.Atoi(v); err == nil { updated.PublishedYear = &i }
 		}
 
-		var coverPath, pdfPath string
-		var savedCover, savedPDF bool
+		prevCover := old.CoverImagePath
+		prevPDF := old.PDFPath
+		var savedCoverPath, savedPDFPath string
+		savedCover := false
+		savedPDF := false
 
 		cover, ch, err := r.FormFile("cover")
 		if err == nil {
 			defer cover.Close()
-			coverpath, err := h.store.Save(cover, ch.Filename, "image")
-			if err != nil {
-				WriteError(w, http.StatusBadRequest, err.Error())
+			if !isAllowedExtension(ch.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp files are allowed for cover")
 				return
 			}
+			coverpath, err := h.store.Save(cover, ch.Filename, "image")
+			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
 			savedCover = true
-			b.CoverImagePath = &coverpath
+			savedCoverPath = coverpath
+			updated.CoverImagePath = &coverpath
 		}
 		pdf, ph, err := r.FormFile("pdf")
 		if err == nil {
 			defer pdf.Close()
+			if !isAllowedExtension(ph.Filename, []string{".pdf"}) {
+				WriteError(w, http.StatusBadRequest, "only .pdf files are allowed for book")
+				return
+			}
 			path, err := h.store.Save(pdf, ph.Filename, "book")
 			if err != nil {
-				if savedCover {
-					_ = h.store.Remove(coverPath)
-				}
+				if savedCover { _ = h.store.Remove(savedCoverPath) }
 				WriteError(w, http.StatusBadRequest, err.Error())
 				return
 			}
 			savedPDF = true
-			b.PDFPath = &path
+			savedPDFPath = path
+			updated.PDFPath = &path
 		}
 
-		if err := h.svc.Update(r.Context(), &b); err != nil {
-			if savedCover {
-				_ = h.store.Remove(coverPath)
-			}
-			if savedPDF {
-				_ = h.store.Remove(pdfPath)
-			}
+		if err := h.svc.Update(r.Context(), &updated); err != nil {
+			if savedCover { _ = h.store.Remove(savedCoverPath) }
+			if savedPDF { _ = h.store.Remove(savedPDFPath) }
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteJSON(w, http.StatusOK, bookResponse(&b))
+
+		// cleanup old files after successful update
+		if savedCover && prevCover != nil && (updated.CoverImagePath == nil || *prevCover != *updated.CoverImagePath) {
+			_ = h.store.Remove(*prevCover)
+		}
+		if savedPDF && prevPDF != nil && (updated.PDFPath == nil || *prevPDF != *updated.PDFPath) {
+			_ = h.store.Remove(*prevPDF)
+		}
+
+		WriteJSON(w, http.StatusOK, bookResponse(&updated))
 		return
 	}
 
 	var req dto.BookCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid payload")
-		return
-	}
-	if err := validation.Struct(req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	b := entity.Book{ID: id, Title: req.Title, BibliographicInfo: req.BibliographicInfo, PageCount: req.PageCount, PublishedYear: req.PublishedYear}
-	if err := h.svc.Update(r.Context(), &b); err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	WriteJSON(w, http.StatusOK, bookResponse(&b))
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
+	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
+
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	updated := *old
+	if req.Title != "" { updated.Title = req.Title }
+	if req.BibliographicInfo != nil { updated.BibliographicInfo = req.BibliographicInfo }
+	if req.PageCount != nil { updated.PageCount = req.PageCount }
+	if req.PublishedYear != nil { updated.PublishedYear = req.PublishedYear }
+
+	if err := h.svc.Update(r.Context(), &updated); err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
+	WriteJSON(w, http.StatusOK, bookResponse(&updated))
 }
 
 // @Summary Delete book

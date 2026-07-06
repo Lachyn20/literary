@@ -116,7 +116,6 @@ func translatedIntoLanguageResponse(t *entity.TranslatedIntoLanguage) dto.Transl
 func biographyResponse(b *entity.Biography) dto.BiographyResponse {
 	return dto.BiographyResponse{
 		ID:        b.ID.String(),
-		Content:   b.Content,
 		PhotoPath: b.PhotoPath,
 		UpdatedAt: b.UpdatedAt,
 	}

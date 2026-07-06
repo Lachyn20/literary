@@ -191,9 +191,8 @@ func (h *WorkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			lower := strings.ToLower(fh.Filename)
-			if !strings.HasSuffix(lower, ".pdf") && !strings.HasSuffix(lower, ".txt") {
-				WriteError(w, http.StatusBadRequest, "only pdf and txt files are allowed")
+			if !isAllowedExtension(fh.Filename, []string{".pdf", ".txt"}) {
+				WriteError(w, http.StatusBadRequest, "only .pdf and .txt files are allowed")
 				return
 			}
 
@@ -320,9 +319,8 @@ func (h *WorkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		file, fh, err := r.FormFile("file")
 		if err == nil {
 			defer file.Close()
-			lower := strings.ToLower(fh.Filename)
-			if !strings.HasSuffix(lower, ".pdf") && !strings.HasSuffix(lower, ".txt") {
-				WriteError(w, http.StatusBadRequest, "only pdf and txt files are allowed")
+			if !isAllowedExtension(fh.Filename, []string{".pdf", ".txt"}) {
+				WriteError(w, http.StatusBadRequest, "only .pdf and .txt files are allowed")
 				return
 			}
 

@@ -66,7 +66,7 @@ func (h *PhotoArchiveHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param title formData string true "Title"
 // @Param description formData string false "Description"
 // @Param category formData string false "Category"
-// @Param image formData file false "Image file"
+// @Param image formData file false "Image file — accepted: .jpg, .jpeg, .png, .webp"
 // @Success 201 {object} dto.PhotoArchiveResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -93,9 +93,8 @@ func (h *PhotoArchiveHandler) Create(w http.ResponseWriter, r *http.Request) {
 		img, ih, err := r.FormFile("image")
 		if err == nil {
 			defer img.Close()
-			lower := strings.ToLower(ih.Filename)
-			if !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") && !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".gif") && !strings.HasSuffix(lower, ".webp") {
-				WriteError(w, http.StatusBadRequest, "unsupported image file type")
+			if !isAllowedExtension(ih.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp image files are allowed")
 				return
 			}
 			path, err := h.store.Save(img, ih.Filename, "image")
@@ -138,7 +137,7 @@ func (h *PhotoArchiveHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param id path string true "Photo archive ID"
 // @Param title formData string false "Title"
 // @Param description formData string false "Description"
-// @Param image formData file false "Image file"
+// @Param image formData file false "Image file — accepted: .jpg, .jpeg, .png, .webp"
 // @Success 200 {object} dto.PhotoArchiveResponse
 // @Failure 400 {object} handler.JSONResponse
 // @Failure 500 {object} handler.JSONResponse
@@ -151,50 +150,57 @@ func (h *PhotoArchiveHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(32 << 20); err != nil { WriteError(w, http.StatusBadRequest, "invalid multipart"); return }
 		old, err := h.svc.GetByID(r.Context(), id)
 		if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
-		var p entity.PhotoArchive
-		p.ID = id
-		p.Title = r.FormValue("title")
-		if v := r.FormValue("description"); v != "" { p.Description = &v }
+		updated := *old
+
+		if v := r.FormValue("title"); v != "" { updated.Title = v }
+		if v := r.FormValue("description"); v != "" { updated.Description = &v }
 		if v := r.FormValue("category"); v != "" {
 			switch entity.PhotoCategory(v) {
 			case entity.PhotoCategoryArchive, entity.PhotoCategoryPersonal:
-				p.Category = entity.PhotoCategory(v)
+				updated.Category = entity.PhotoCategory(v)
 			default:
 				WriteError(w, http.StatusBadRequest, "category must be archive or personal")
 				return
 			}
-		} else {
-			p.Category = entity.PhotoCategoryArchive
 		}
-		p.ImagePath = old.ImagePath
-		var oldPath string
-		if old.ImagePath != "" { oldPath = old.ImagePath }
+
+		prevPath := old.ImagePath
+		var newPath string
+		var savedNew bool
+
 		img, ih, err := r.FormFile("image")
 		if err == nil {
 			defer img.Close()
-			lower := strings.ToLower(ih.Filename)
-			if !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") && !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".gif") && !strings.HasSuffix(lower, ".webp") {
-				WriteError(w, http.StatusBadRequest, "unsupported image file type")
+			if !isAllowedExtension(ih.Filename, []string{".jpg", ".jpeg", ".png", ".webp"}) {
+				WriteError(w, http.StatusBadRequest, "only .jpg, .jpeg, .png, .webp image files are allowed")
 				return
 			}
 			path, err := h.store.Save(img, ih.Filename, "image")
 			if err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-			p.ImagePath = path
+			newPath = path
+			savedNew = true
+			updated.ImagePath = path
 		}
-		if err := h.svc.Update(r.Context(), &p); err != nil {
-			if p.ImagePath != "" && p.ImagePath != oldPath { _ = h.store.Remove(p.ImagePath) }
+
+		if err := h.svc.Update(r.Context(), &updated); err != nil {
+			if savedNew { _ = h.store.Remove(newPath) }
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if p.ImagePath != "" && oldPath != "" && p.ImagePath != oldPath { _ = h.store.Remove(oldPath) }
-		WriteJSON(w, http.StatusOK, photoArchiveResponse(&p))
+
+		if savedNew && prevPath != "" && updated.ImagePath != prevPath { _ = h.store.Remove(prevPath) }
+		WriteJSON(w, http.StatusOK, photoArchiveResponse(&updated))
 		return
 	}
 
 	var req dto.PhotoArchiveCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { WriteError(w, http.StatusBadRequest, "invalid payload"); return }
 	if err := validation.Struct(req); err != nil { WriteError(w, http.StatusBadRequest, err.Error()); return }
-	p := entity.PhotoArchive{ID: id, Title: req.Title, ImagePath: "", Description: req.Description}
+	old, err := h.svc.GetByID(r.Context(), id)
+	if err != nil { WriteError(w, http.StatusNotFound, err.Error()); return }
+	p := *old
+	if req.Title != "" { p.Title = req.Title }
+	if req.Description != nil { p.Description = req.Description }
 	if req.TakenDate != nil { p.TakenDate = req.TakenDate }
 	if req.Category != nil && *req.Category != "" {
 		switch entity.PhotoCategory(*req.Category) {
