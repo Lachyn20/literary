@@ -6,12 +6,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	RoleAdmin  = "admin"
+	RoleEditor = "editor"
+)
+
 type User struct {
 	ID           uuid.UUID
 	Name         string
 	Email        string
 	PasswordHash string
 	Role         string
+	Active       bool
 	CreatedAt    time.Time
 }
 

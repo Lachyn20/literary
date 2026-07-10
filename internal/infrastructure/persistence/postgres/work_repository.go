@@ -38,7 +38,7 @@ func (r *WorkRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Wor
 	return &work, nil
 }
 
-func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter) ([]*entity.Work, error) {
+func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter, limit, offset int) ([]*entity.Work, error) {
 	query := `SELECT id,title,category_id,file_path,description,audience_type,publish_year,created_at,updated_at FROM works`
 	args := []interface{}{}
 	clauses := []string{}
@@ -57,6 +57,9 @@ func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter)
 	if len(clauses) > 0 {
 		query += " WHERE " + strings.Join(clauses, " AND ")
 	}
+	
+	query += " ORDER BY created_at DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -73,6 +76,31 @@ func (r *WorkRepository) List(ctx context.Context, filter repository.WorkFilter)
 		works = append(works, &work)
 	}
 	return works, rows.Err()
+}
+
+func (r *WorkRepository) Count(ctx context.Context, filter repository.WorkFilter) (int, error) {
+	query := `SELECT COUNT(*) FROM works`
+	args := []interface{}{}
+	clauses := []string{}
+	if filter.CategoryID != nil {
+		clauses = append(clauses, `category_id=$`+strconv.Itoa(len(args)+1))
+		args = append(args, *filter.CategoryID)
+	}
+	if filter.AudienceType != nil {
+		clauses = append(clauses, `audience_type=$`+strconv.Itoa(len(args)+1))
+		args = append(args, *filter.AudienceType)
+	}
+	if filter.PublishYear != nil {
+		clauses = append(clauses, `publish_year=$`+strconv.Itoa(len(args)+1))
+		args = append(args, *filter.PublishYear)
+	}
+	if len(clauses) > 0 {
+		query += " WHERE " + strings.Join(clauses, " AND ")
+	}
+	
+	var count int
+	err := r.pool.QueryRow(ctx, query, args...).Scan(&count)
+	return count, err
 }
 
 func (r *WorkRepository) Update(ctx context.Context, work *entity.Work) error {

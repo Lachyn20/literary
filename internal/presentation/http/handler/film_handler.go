@@ -12,6 +12,7 @@ import (
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
 	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/pagination"
 	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/film"
 )
@@ -34,14 +35,24 @@ func (h *FilmHandler) RegisterRoutes(r chi.Router) {
 }
 
 // @Summary List films
-// @Description List all films
+// @Description List all films with pagination support
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Param offset query int false "Offset for pagination (default: 0)"
+// @Param page query int false "Page number (1-indexed, alternative to offset)"
 // @Success 200 {array} dto.FilmResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/films [get]
 func (h *FilmHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List(r.Context())
+	paginationParams := pagination.Parse(r)
+	items, total, err := h.svc.List(r.Context(), paginationParams.Limit, paginationParams.Offset)
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, filmResponses(items))
+	
+	paginationInfo := pagination.NewInfo(paginationParams.Limit, paginationParams.Offset, total)
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "ok",
+		"data":         filmResponses(items),
+		"pagination":   paginationInfo,
+	})
 }
 
 // @Summary Get film

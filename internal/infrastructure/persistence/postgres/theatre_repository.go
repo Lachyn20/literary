@@ -36,8 +36,8 @@ func (r *TheatreProductionRepository) GetByID(ctx context.Context, id uuid.UUID)
 	return &production, nil
 }
 
-func (r *TheatreProductionRepository) List(ctx context.Context) ([]*entity.TheatreProduction, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,play_title,theatre_name,premiere_date,notes,created_at FROM theatre_productions`)
+func (r *TheatreProductionRepository) List(ctx context.Context, limit, offset int) ([]*entity.TheatreProduction, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,play_title,theatre_name,premiere_date,notes,created_at FROM theatre_productions ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *TheatreProductionRepository) List(ctx context.Context) ([]*entity.Theat
 		productions = append(productions, &production)
 	}
 	return productions, rows.Err()
+}
+
+func (r *TheatreProductionRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM theatre_productions`).Scan(&count)
+	return count, err
 }
 
 func (r *TheatreProductionRepository) Update(ctx context.Context, production *entity.TheatreProduction) error {

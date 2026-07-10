@@ -49,3 +49,22 @@ func JWTAuth(tokenGen repository.TokenGenerator) func(next http.Handler) http.Ha
 		})
 	}
 }
+
+func RequireRoles(roles ...string) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := UserFromContext(r.Context())
+			if claims == nil {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			for _, role := range roles {
+				if claims.Role == role {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+}

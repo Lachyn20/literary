@@ -36,8 +36,8 @@ func (r *BookRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Boo
 	return &book, nil
 }
 
-func (r *BookRepository) List(ctx context.Context) ([]*entity.Book, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,title,bibliographic_info,cover_image_path,pdf_path,page_count,published_year,created_at FROM books`)
+func (r *BookRepository) List(ctx context.Context, limit, offset int) ([]*entity.Book, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,title,bibliographic_info,cover_image_path,pdf_path,page_count,published_year,created_at FROM books ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *BookRepository) List(ctx context.Context) ([]*entity.Book, error) {
 		books = append(books, &book)
 	}
 	return books, rows.Err()
+}
+
+func (r *BookRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM books`).Scan(&count)
+	return count, err
 }
 
 func (r *BookRepository) Update(ctx context.Context, book *entity.Book) error {

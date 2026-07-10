@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PersonalLetterRepository struct {
@@ -36,8 +36,8 @@ func (r *PersonalLetterRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 	return &letter, nil
 }
 
-func (r *PersonalLetterRepository) List(ctx context.Context) ([]*entity.PersonalLetter, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,title,content,letter_date,scan_image_path,created_at FROM personal_letters`)
+func (r *PersonalLetterRepository) List(ctx context.Context, limit, offset int) ([]*entity.PersonalLetter, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,title,content,letter_date,scan_image_path,created_at FROM personal_letters ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *PersonalLetterRepository) List(ctx context.Context) ([]*entity.Personal
 		letters = append(letters, &letter)
 	}
 	return letters, rows.Err()
+}
+
+func (r *PersonalLetterRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM personal_letters`).Scan(&count)
+	return count, err
 }
 
 func (r *PersonalLetterRepository) Update(ctx context.Context, letter *entity.PersonalLetter) error {

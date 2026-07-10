@@ -53,6 +53,8 @@ docker-compose exec api /app/server migrate
 # Swagger UI at http://localhost:8081/swagger/index.html
 ```
 
+> Uploaded files persist on the host at `/srv/hemra-sirow/uploads` and are served directly by Nginx. Ensure that directory exists and has the correct permissions before running `docker compose up`.
+
 ### Environment Variables
 
 The docker-compose.yml automatically sets:

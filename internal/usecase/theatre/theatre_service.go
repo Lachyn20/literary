@@ -27,8 +27,18 @@ func (s *TheatreService) GetByID(ctx context.Context, id uuid.UUID) (*entity.The
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *TheatreService) List(ctx context.Context) ([]*entity.TheatreProduction, error) {
-	return s.repo.List(ctx)
+func (s *TheatreService) List(ctx context.Context, limit, offset int) ([]*entity.TheatreProduction, int, error) {
+	productions, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return productions, len(productions), nil
+	}
+	
+	return productions, total, nil
 }
 
 func (s *TheatreService) Update(ctx context.Context, theatre *entity.TheatreProduction) error {

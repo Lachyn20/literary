@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -58,16 +59,18 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
-	log.Println("shutting down")
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	sig := <-quit
+	log.Printf("received signal %s, shutting down", sig)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("shutdown error: %v", err)
+		log.Printf("http shutdown error: %v", err)
 	}
 	if err := container.Shutdown(ctx); err != nil {
-		log.Printf("container shutdown err: %v", err)
+		log.Printf("container shutdown error: %v", err)
 	}
 }
 

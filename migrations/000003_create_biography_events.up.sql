@@ -22,4 +22,4 @@ CREATE TABLE biography_events (
 CREATE INDEX idx_biography_events_biography_id 
     ON biography_events(biography_id);
 CREATE INDEX idx_biography_events_year 
-    ON biography_events(year);
+    ON biography_events(year)

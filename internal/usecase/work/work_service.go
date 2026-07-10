@@ -28,15 +28,21 @@ func (s *WorkService) GetByID(ctx context.Context, id uuid.UUID) (*entity.Work, 
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *WorkService) List(ctx context.Context, filter repository.WorkFilter) ([]*entity.Work, int, error) {
+func (s *WorkService) List(ctx context.Context, filter repository.WorkFilter, limit, offset int) ([]*entity.Work, int, error) {
 	if filter.Search != nil && *filter.Search != "" {
 		return s.repo.Search(ctx, filter)
 	}
-	works, err := s.repo.List(ctx, filter)
+	works, err := s.repo.List(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
-	return works, len(works), nil
+	
+	total, err := s.repo.Count(ctx, filter)
+	if err != nil {
+		return works, len(works), nil
+	}
+	
+	return works, total, nil
 }
 
 func (s *WorkService) Update(ctx context.Context, work *entity.Work) error {

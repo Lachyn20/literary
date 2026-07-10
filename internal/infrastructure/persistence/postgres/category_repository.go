@@ -48,8 +48,8 @@ func (r *CategoryRepository) GetBySlug(ctx context.Context, slug string) (*entit
 	return &category, nil
 }
 
-func (r *CategoryRepository) List(ctx context.Context) ([]*entity.Category, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,name,slug FROM categories`)
+func (r *CategoryRepository) List(ctx context.Context, limit, offset int) ([]*entity.Category, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,name,slug FROM categories ORDER BY name ASC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +64,12 @@ func (r *CategoryRepository) List(ctx context.Context) ([]*entity.Category, erro
 		categories = append(categories, &category)
 	}
 	return categories, rows.Err()
+}
+
+func (r *CategoryRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM categories`).Scan(&count)
+	return count, err
 }
 
 func (r *CategoryRepository) Update(ctx context.Context, category *entity.Category) error {

@@ -12,6 +12,7 @@ import (
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
 	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/pagination"
 	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/work"
 )
@@ -65,22 +66,9 @@ func (h *WorkHandler) List(w http.ResponseWriter, r *http.Request) {
 			filter.PublishYear = &yi
 		}
 	}
-	page := 1
-	limit := 20
-	if p := q.Get("page"); p != "" {
-		if pi, err := strconv.Atoi(p); err == nil && pi > 0 {
-			page = pi
-		}
-	}
-	if l := q.Get("limit"); l != "" {
-		if li, err := strconv.Atoi(l); err == nil && li > 0 {
-			limit = li
-		}
-	}
-	filter.Page = page
-	filter.Limit = limit
+	paginationParams := pagination.Parse(r)
 
-	works, total, err := h.svc.List(r.Context(), filter)
+	works, total, err := h.svc.List(r.Context(), filter, paginationParams.Limit, paginationParams.Offset)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -88,7 +76,9 @@ func (h *WorkHandler) List(w http.ResponseWriter, r *http.Request) {
 	if works == nil {
 		works = []*entity.Work{}
 	}
-	resp := map[string]interface{}{"status": "ok", "data": workResponses(works), "total": total}
+
+	paginationInfo := pagination.NewInfo(paginationParams.Limit, paginationParams.Offset, total)
+	resp := map[string]interface{}{"status": "ok", "data": workResponses(works), "pagination": paginationInfo}
 	WriteJSON(w, http.StatusOK, resp)
 }
 

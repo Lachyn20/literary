@@ -28,8 +28,18 @@ func (s *PersonalLetterService) GetByID(ctx context.Context, id uuid.UUID) (*ent
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PersonalLetterService) List(ctx context.Context) ([]*entity.PersonalLetter, error) {
-	return s.repo.List(ctx)
+func (s *PersonalLetterService) List(ctx context.Context, limit, offset int) ([]*entity.PersonalLetter, int, error) {
+	letters, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return letters, len(letters), nil
+	}
+	
+	return letters, total, nil
 }
 
 func (s *PersonalLetterService) Update(ctx context.Context, letter *entity.PersonalLetter) error {

@@ -28,8 +28,18 @@ func (s *PhotoArchiveService) GetByID(ctx context.Context, id uuid.UUID) (*entit
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PhotoArchiveService) List(ctx context.Context) ([]*entity.PhotoArchive, error) {
-	return s.repo.List(ctx)
+func (s *PhotoArchiveService) List(ctx context.Context, limit, offset int) ([]*entity.PhotoArchive, int, error) {
+	photos, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return photos, len(photos), nil
+	}
+	
+	return photos, total, nil
 }
 
 func (s *PhotoArchiveService) Update(ctx context.Context, photo *entity.PhotoArchive) error {

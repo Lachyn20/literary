@@ -28,8 +28,18 @@ func (s *BroadcastService) GetByID(ctx context.Context, id uuid.UUID) (*entity.B
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *BroadcastService) List(ctx context.Context) ([]*entity.Broadcast, error) {
-	return s.repo.List(ctx)
+func (s *BroadcastService) List(ctx context.Context, limit, offset int) ([]*entity.Broadcast, int, error) {
+	broadcasts, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return broadcasts, len(broadcasts), nil
+	}
+	
+	return broadcasts, total, nil
 }
 
 func (s *BroadcastService) Update(ctx context.Context, broadcast *entity.Broadcast) error {

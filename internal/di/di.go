@@ -6,12 +6,13 @@ import (
 	"os"
 
 	"github.com/hemra-siirow/literary/internal/domain/repository"
-	"github.com/hemra-siirow/literary/internal/infrastructure/auth"
+	infraauth "github.com/hemra-siirow/literary/internal/infrastructure/auth"
 	"github.com/hemra-siirow/literary/internal/infrastructure/config"
 	pg "github.com/hemra-siirow/literary/internal/infrastructure/persistence/postgres"
 	"github.com/hemra-siirow/literary/internal/infrastructure/storage"
 	"github.com/hemra-siirow/literary/internal/presentation/http/handler"
 	prouter "github.com/hemra-siirow/literary/internal/presentation/http/router"
+	authusecase "github.com/hemra-siirow/literary/internal/usecase/auth"
 	"github.com/hemra-siirow/literary/internal/usecase/biography"
 	"github.com/hemra-siirow/literary/internal/usecase/book"
 	"github.com/hemra-siirow/literary/internal/usecase/broadcast"
@@ -41,10 +42,13 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	}
 
 	// adapters
-	jwt := auth.NewJWTAdapter(cfg)
+	jwt := infraauth.NewJWTAdapter(cfg)
+	hasher := infraauth.NewBcryptHasher(12)
 
 	// repositories
 	workRepo := pg.NewWorkRepository(pool)
+	userRepo := pg.NewUserRepository(pool)
+	refreshTokenRepo := pg.NewRefreshTokenRepository(pool)
 	bookRepo := pg.NewBookRepository(pool)
 	broadcastRepo := pg.NewBroadcastRepository(pool)
 	filmRepo := pg.NewFilmRepository(pool)
@@ -57,7 +61,6 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	theatreRepo := pg.NewTheatreProductionRepository(pool)
 	categoryRepo := pg.NewCategoryRepository(pool)
 	localStorage := storage.NewLocalStorage(cfg.UploadBasePath)
-
 	bookPhotoRepo := pg.NewBookPhotoRepository(pool)
 
 	// services
@@ -73,7 +76,15 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	categorySvc := category.NewCategoryService(categoryRepo)
 	theatreSvc := theatre.NewTheatreService(theatreRepo)
 
+	// auth use cases
+	loginUseCase := authusecase.NewLoginUseCase(userRepo, hasher, jwt, refreshTokenRepo)
+	refreshUseCase := authusecase.NewRefreshTokenUseCase(userRepo, jwt, refreshTokenRepo)
+	logoutUseCase := authusecase.NewLogoutUseCase(refreshTokenRepo)
+	createUserUseCase := authusecase.NewCreateUserUseCase(userRepo, hasher, jwt, refreshTokenRepo)
+	changePasswordUseCase := authusecase.NewChangePasswordUseCase(userRepo, hasher)
+
 	// handlers
+	authHandler := handler.NewAuthHandler(loginUseCase, refreshUseCase, logoutUseCase, createUserUseCase, changePasswordUseCase)
 	workHandler := handler.NewWorkHandler(workSvc, localStorage)
 	bookHandler := handler.NewBookHandler(bookSvc, localStorage)
 	broadcastHandler := handler.NewBroadcastHandler(broadcastSvc, localStorage)
@@ -85,8 +96,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	biographyEventHandler := handler.NewBiographyEventHandler(biographyEventSvc, bioSvc)
 	categoryHandler := handler.NewCategoryHandler(categorySvc)
 	theatreHandler := handler.NewTheatreHandler(theatreSvc)
-
-	registrars := []prouter.RouteRegistrar{workHandler, bookHandler, broadcastHandler, filmHandler, photoHandler, plHandler, translationHandler, bioHandler, biographyEventHandler, categoryHandler, theatreHandler}
+	registrars := []prouter.RouteRegistrar{authHandler, workHandler, bookHandler, broadcastHandler, filmHandler, photoHandler, plHandler, translationHandler, bioHandler, biographyEventHandler, categoryHandler, theatreHandler}
 
 	// small provider to satisfy router's tokenGen param
 	tg := &jwtProvider{j: jwt}
@@ -102,7 +112,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 }
 
 type jwtProvider struct {
-	j *auth.JWTAdapter
+	j *infraauth.JWTAdapter
 }
 
 func (p *jwtProvider) TokenGenerator() repository.TokenGenerator {

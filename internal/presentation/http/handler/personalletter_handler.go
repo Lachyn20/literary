@@ -11,6 +11,7 @@ import (
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
 	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/pagination"
 	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/personalletter"
 )
@@ -33,14 +34,24 @@ func (h *PersonalLetterHandler) RegisterRoutes(r chi.Router) {
 }
 
 // @Summary List personal letters
-// @Description List all personal letters
+// @Description List all personal letters with pagination support
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Param offset query int false "Offset for pagination (default: 0)"
+// @Param page query int false "Page number (1-indexed, alternative to offset)"
 // @Success 200 {array} dto.PersonalLetterResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/personal-letters [get]
 func (h *PersonalLetterHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List(r.Context())
+	paginationParams := pagination.Parse(r)
+	items, total, err := h.svc.List(r.Context(), paginationParams.Limit, paginationParams.Offset)
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, personalLetterResponses(items))
+	
+	paginationInfo := pagination.NewInfo(paginationParams.Limit, paginationParams.Offset, total)
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "ok",
+		"data":         personalLetterResponses(items),
+		"pagination":   paginationInfo,
+	})
 }
 
 // @Summary Get personal letter

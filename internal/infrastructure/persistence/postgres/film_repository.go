@@ -36,8 +36,8 @@ func (r *FilmRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Fil
 	return &film, nil
 }
 
-func (r *FilmRepository) List(ctx context.Context) ([]*entity.Film, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,title,film_type,based_on_scenario,director,release_year,video_path,created_at FROM films`)
+func (r *FilmRepository) List(ctx context.Context, limit, offset int) ([]*entity.Film, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,title,film_type,based_on_scenario,director,release_year,video_path,created_at FROM films ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *FilmRepository) List(ctx context.Context) ([]*entity.Film, error) {
 		films = append(films, &film)
 	}
 	return films, rows.Err()
+}
+
+func (r *FilmRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM films`).Scan(&count)
+	return count, err
 }
 
 func (r *FilmRepository) Update(ctx context.Context, film *entity.Film) error {

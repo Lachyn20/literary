@@ -29,12 +29,20 @@ func (s *BookService) GetByID(ctx context.Context, id uuid.UUID) (*entity.Book, 
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *BookService) List(ctx context.Context) ([]*entity.Book, int, error) {
-	books, err := s.repo.List(ctx)
+func (s *BookService) List(ctx context.Context, limit, offset int) ([]*entity.Book, int, error) {
+	books, err := s.repo.List(ctx, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
-	return books, len(books), nil
+	
+	// Get total count for pagination info
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		// If count fails, just return the count of fetched items
+		return books, len(books), nil
+	}
+	
+	return books, total, nil
 }
 
 func (s *BookService) Update(ctx context.Context, book *entity.Book) error {

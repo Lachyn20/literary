@@ -27,8 +27,18 @@ func (s *CategoryService) GetByID(ctx context.Context, id uuid.UUID) (*entity.Ca
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *CategoryService) List(ctx context.Context) ([]*entity.Category, error) {
-	return s.repo.List(ctx)
+func (s *CategoryService) List(ctx context.Context, limit, offset int) ([]*entity.Category, int, error) {
+	categories, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return categories, len(categories), nil
+	}
+	
+	return categories, total, nil
 }
 
 func (s *CategoryService) Update(ctx context.Context, category *entity.Category) error {

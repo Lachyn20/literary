@@ -36,8 +36,8 @@ func (r *PhotoArchiveRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 	return &photo, nil
 }
 
-func (r *PhotoArchiveRepository) List(ctx context.Context) ([]*entity.PhotoArchive, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,title,image_path,description,taken_date,category,created_at FROM photo_archive`)
+func (r *PhotoArchiveRepository) List(ctx context.Context, limit, offset int) ([]*entity.PhotoArchive, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,title,image_path,description,taken_date,category,created_at FROM photo_archive ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *PhotoArchiveRepository) List(ctx context.Context) ([]*entity.PhotoArchi
 		photos = append(photos, &photo)
 	}
 	return photos, rows.Err()
+}
+
+func (r *PhotoArchiveRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM photo_archive`).Scan(&count)
+	return count, err
 }
 
 func (r *PhotoArchiveRepository) Update(ctx context.Context, photo *entity.PhotoArchive) error {

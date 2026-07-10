@@ -12,6 +12,7 @@ import (
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/domain/repository"
 	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/pagination"
 	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/book"
 )
@@ -34,12 +35,17 @@ func (h *BookHandler) RegisterRoutes(r chi.Router) {
 }
 
 // @Summary List books
-// @Description List all books
+// @Description List all books with pagination support (limit, offset/page)
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Param offset query int false "Offset for pagination (default: 0)"
+// @Param page query int false "Page number (1-indexed, alternative to offset)"
 // @Success 200 {object} dto.BookListResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/books [get]
 func (h *BookHandler) List(w http.ResponseWriter, r *http.Request) {
-	books, total, err := h.svc.List(r.Context())
+	paginationParams := pagination.Parse(r)
+	
+	books, total, err := h.svc.List(r.Context(), paginationParams.Limit, paginationParams.Offset)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -47,7 +53,14 @@ func (h *BookHandler) List(w http.ResponseWriter, r *http.Request) {
 	if books == nil {
 		books = []*entity.Book{}
 	}
-	WriteJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "data": bookResponses(books), "total": total})
+	
+	paginationInfo := pagination.NewInfo(paginationParams.Limit, paginationParams.Offset, total)
+	
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "ok",
+		"data":         bookResponses(books),
+		"pagination":   paginationInfo,
+	})
 }
 
 // @Summary Get book

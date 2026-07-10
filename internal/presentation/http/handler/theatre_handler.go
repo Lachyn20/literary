@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hemra-siirow/literary/internal/domain/entity"
 	"github.com/hemra-siirow/literary/internal/presentation/http/dto"
+	"github.com/hemra-siirow/literary/internal/presentation/http/pagination"
 	"github.com/hemra-siirow/literary/internal/presentation/http/validation"
 	"github.com/hemra-siirow/literary/internal/usecase/theatre"
 )
@@ -30,14 +31,24 @@ func (h *TheatreHandler) RegisterRoutes(r chi.Router) {
 }
 
 // @Summary List theatre productions
-// @Description List all theatre productions
+// @Description List all theatre productions with pagination support
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Param offset query int false "Offset for pagination (default: 0)"
+// @Param page query int false "Page number (1-indexed, alternative to offset)"
 // @Success 200 {array} dto.TheatreResponse
 // @Failure 500 {object} handler.JSONResponse
 // @Router /api/theatre-productions [get]
 func (h *TheatreHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List(r.Context())
+	paginationParams := pagination.Parse(r)
+	items, total, err := h.svc.List(r.Context(), paginationParams.Limit, paginationParams.Offset)
 	if err != nil { WriteError(w, http.StatusInternalServerError, err.Error()); return }
-	WriteJSON(w, http.StatusOK, theatreResponses(items))
+	
+	paginationInfo := pagination.NewInfo(paginationParams.Limit, paginationParams.Offset, total)
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "ok",
+		"data":         theatreResponses(items),
+		"pagination":   paginationInfo,
+	})
 }
 
 // @Summary Get theatre production

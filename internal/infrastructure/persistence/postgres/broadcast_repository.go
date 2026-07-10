@@ -36,8 +36,8 @@ func (r *BroadcastRepository) GetByID(ctx context.Context, id uuid.UUID) (*entit
 	return &broadcast, nil
 }
 
-func (r *BroadcastRepository) List(ctx context.Context) ([]*entity.Broadcast, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,title,broadcast_type,channel_name,broadcast_date,file_path,file_type,created_at FROM broadcasts`)
+func (r *BroadcastRepository) List(ctx context.Context, limit, offset int) ([]*entity.Broadcast, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,title,broadcast_type,channel_name,broadcast_date,file_path,file_type,created_at FROM broadcasts ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,12 @@ func (r *BroadcastRepository) List(ctx context.Context) ([]*entity.Broadcast, er
 		broadcasts = append(broadcasts, &broadcast)
 	}
 	return broadcasts, rows.Err()
+}
+
+func (r *BroadcastRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM broadcasts`).Scan(&count)
+	return count, err
 }
 
 func (r *BroadcastRepository) Update(ctx context.Context, broadcast *entity.Broadcast) error {

@@ -28,8 +28,18 @@ func (s *FilmService) GetByID(ctx context.Context, id uuid.UUID) (*entity.Film, 
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *FilmService) List(ctx context.Context) ([]*entity.Film, error) {
-	return s.repo.List(ctx)
+func (s *FilmService) List(ctx context.Context, limit, offset int) ([]*entity.Film, int, error) {
+	films, err := s.repo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return films, len(films), nil
+	}
+	
+	return films, total, nil
 }
 
 func (s *FilmService) Update(ctx context.Context, film *entity.Film) error {
